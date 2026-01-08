@@ -238,7 +238,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleOrderStatusChange = async (id: string, status: string) => {
+  const handleOrderStatusChange = async (id: string, status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled') => {
     try {
       await updateOrderStatus.mutateAsync({ id, status });
       toast.success("Order status updated");
@@ -503,7 +503,7 @@ export default function AdminDashboard() {
                             <h3 className="font-semibold text-sm sm:text-base">{order.id}</h3>
                             <span
                               className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                order.status === "completed"
+                                order.status === "collected"
                                   ? "bg-primary/10 text-primary"
                                   : order.status === "cancelled"
                                     ? "bg-destructive/10 text-destructive"
@@ -521,7 +521,7 @@ export default function AdminDashboard() {
                         </div>
                         <Select
                           value={order.status}
-                          onValueChange={(value) => handleOrderStatusChange(order.id, value)}
+                          onValueChange={(value) => handleOrderStatusChange(order.id, value as 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled')}
                         >
                           <SelectTrigger className="w-full sm:w-32 h-9 rounded-full">
                             <SelectValue />
@@ -529,7 +529,9 @@ export default function AdminDashboard() {
                           <SelectContent>
                             <SelectItem value="pending">Pending</SelectItem>
                             <SelectItem value="confirmed">Confirmed</SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
+                            <SelectItem value="preparing">Preparing</SelectItem>
+                            <SelectItem value="ready">Ready</SelectItem>
+                            <SelectItem value="collected">Collected</SelectItem>
                             <SelectItem value="cancelled">Cancelled</SelectItem>
                           </SelectContent>
                         </Select>

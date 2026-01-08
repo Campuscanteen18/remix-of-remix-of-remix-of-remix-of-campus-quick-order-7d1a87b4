@@ -1,27 +1,50 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useCampus } from '@/context/CampusContext';
 
-// Types
+// Types matching Supabase schema
 interface MenuItem {
   id: string;
+  campus_id: string;
+  category_id: string | null;
   name: string;
+  description: string | null;
   price: number;
-  quantity: number;
-  category: string;
-  image?: string;
+  image_url: string | null;
   is_veg: boolean;
   is_popular: boolean;
   is_available: boolean;
   available_time_periods: string[];
+  stock_quantity: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 interface Order {
   id: string;
-  user_id: string;
-  items: { name: string; quantity: number; price: number }[];
+  campus_id: string;
+  user_id: string | null;
+  order_number: string;
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled';
   total: number;
-  status: 'pending' | 'preparing' | 'ready' | 'completed' | 'cancelled';
+  qr_code: string | null;
+  is_used: boolean;
+  customer_name: string | null;
+  customer_email: string | null;
+  payment_method: string | null;
+  payment_status: string | null;
+  notes: string | null;
   created_at: string;
-  user_name?: string;
+  updated_at: string;
+}
+
+interface OrderWithItems extends Order {
+  order_items: {
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+  }[];
 }
 
 interface OrderStats {
@@ -32,160 +55,216 @@ interface OrderStats {
   chartData: { day: string; revenue: number; orders: number }[];
 }
 
-// Storage keys
-const MENU_ITEMS_KEY = 'canteen_admin_menu_items';
-const ORDERS_KEY = 'canteen_admin_orders';
-const STATS_KEY = 'canteen_admin_stats';
-
-// Default data generators
-const generateDefaultMenuItems = (): MenuItem[] => [
-  { id: '1', name: 'Masala Dosa', price: 60, quantity: 50, category: 'breakfast', is_veg: true, is_popular: true, is_available: true, available_time_periods: ['breakfast', 'lunch'] },
-  { id: '2', name: 'Idli Sambar', price: 40, quantity: 100, category: 'breakfast', is_veg: true, is_popular: true, is_available: true, available_time_periods: ['breakfast'] },
-  { id: '3', name: 'Veg Biryani', price: 120, quantity: 30, category: 'lunch', is_veg: true, is_popular: true, is_available: true, available_time_periods: ['lunch', 'dinner'] },
-  { id: '4', name: 'Chicken Biryani', price: 150, quantity: 25, category: 'lunch', is_veg: false, is_popular: true, is_available: true, available_time_periods: ['lunch', 'dinner'] },
-  { id: '5', name: 'Samosa', price: 20, quantity: 200, category: 'snacks', is_veg: true, is_popular: true, is_available: true, available_time_periods: ['snacks'] },
-  { id: '6', name: 'Tea', price: 15, quantity: 500, category: 'beverages', is_veg: true, is_popular: false, is_available: true, available_time_periods: ['breakfast', 'snacks'] },
-  { id: '7', name: 'Coffee', price: 25, quantity: 300, category: 'beverages', is_veg: true, is_popular: true, is_available: true, available_time_periods: ['breakfast', 'snacks'] },
-  { id: '8', name: 'Paneer Butter Masala', price: 140, quantity: 20, category: 'main-course', is_veg: true, is_popular: false, is_available: true, available_time_periods: ['lunch', 'dinner'] },
-];
-
-const generateDefaultOrders = (): Order[] => [
-  { id: 'ORD-001', user_id: 'user_1', items: [{ name: 'Masala Dosa', quantity: 2, price: 60 }], total: 120, status: 'pending', created_at: new Date().toISOString(), user_name: 'John Doe' },
-  { id: 'ORD-002', user_id: 'user_2', items: [{ name: 'Coffee', quantity: 3, price: 25 }], total: 75, status: 'preparing', created_at: new Date(Date.now() - 3600000).toISOString(), user_name: 'Jane Smith' },
-  { id: 'ORD-003', user_id: 'user_3', items: [{ name: 'Veg Biryani', quantity: 1, price: 120 }, { name: 'Tea', quantity: 1, price: 15 }], total: 135, status: 'ready', created_at: new Date(Date.now() - 7200000).toISOString(), user_name: 'Bob Wilson' },
-  { id: 'ORD-004', user_id: 'user_1', items: [{ name: 'Samosa', quantity: 5, price: 20 }], total: 100, status: 'completed', created_at: new Date(Date.now() - 86400000).toISOString(), user_name: 'John Doe' },
-];
-
-const generateDefaultStats = (): OrderStats => ({
-  totalRevenue: 24580,
-  totalOrders: 156,
-  avgOrderValue: 158,
-  todayOrders: 23,
-  chartData: [
-    { day: 'Mon', revenue: 3200, orders: 18 },
-    { day: 'Tue', revenue: 2800, orders: 15 },
-    { day: 'Wed', revenue: 4100, orders: 24 },
-    { day: 'Thu', revenue: 3600, orders: 21 },
-    { day: 'Fri', revenue: 4500, orders: 28 },
-    { day: 'Sat', revenue: 3200, orders: 25 },
-    { day: 'Sun', revenue: 3180, orders: 25 },
-  ],
-});
-
-// LocalStorage helpers
-const getStoredData = <T>(key: string, defaultFn: () => T): T => {
-  try {
-    const stored = localStorage.getItem(key);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (error) {
-    console.error(`Error reading ${key} from localStorage:`, error);
-  }
-  const defaultData = defaultFn();
-  localStorage.setItem(key, JSON.stringify(defaultData));
-  return defaultData;
-};
-
-const setStoredData = <T>(key: string, data: T): void => {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (error) {
-    console.error(`Error writing ${key} to localStorage:`, error);
-  }
-};
-
-// Simulate API delay
-const delay = (ms: number = 300) => new Promise(resolve => setTimeout(resolve, ms));
-
-// Hooks
+// Fetch menu items for the current campus
 export function useAdminMenuItems() {
+  const { campus } = useCampus();
+
   return useQuery({
-    queryKey: ['admin-menu-items'],
+    queryKey: ['admin-menu-items', campus?.id],
     queryFn: async () => {
-      await delay();
-      return getStoredData(MENU_ITEMS_KEY, generateDefaultMenuItems);
+      if (!campus?.id) return [];
+
+      const { data, error } = await supabase
+        .from('menu_items')
+        .select('*')
+        .eq('campus_id', campus.id)
+        .order('name');
+
+      if (error) throw error;
+
+      // Transform to match the expected format
+      return (data || []).map(item => ({
+        id: item.id,
+        name: item.name,
+        price: Number(item.price),
+        quantity: item.stock_quantity ?? 0,
+        category: item.category_id || 'snacks',
+        image: item.image_url,
+        is_veg: item.is_veg,
+        is_popular: item.is_popular,
+        is_available: item.is_available,
+        available_time_periods: item.available_time_periods || [],
+        description: item.description,
+      }));
     },
+    enabled: !!campus?.id,
   });
 }
 
+// Create a new menu item
 export function useCreateMenuItem() {
   const queryClient = useQueryClient();
-  
+  const { campus } = useCampus();
+
   return useMutation({
-    mutationFn: async (item: Omit<MenuItem, 'id'>) => {
-      await delay();
-      const items = getStoredData(MENU_ITEMS_KEY, generateDefaultMenuItems);
-      const newItem: MenuItem = { ...item, id: `item_${Date.now()}` };
-      const updatedItems = [...items, newItem];
-      setStoredData(MENU_ITEMS_KEY, updatedItems);
-      return newItem;
+    mutationFn: async (item: {
+      name: string;
+      price: number;
+      quantity?: number;
+      category?: string;
+      image?: string;
+      is_veg?: boolean;
+      is_popular?: boolean;
+      is_available?: boolean;
+      available_time_periods?: string[];
+      description?: string;
+    }) => {
+      if (!campus?.id) throw new Error('No campus selected');
+
+      const { data, error } = await supabase
+        .from('menu_items')
+        .insert([{
+          campus_id: campus.id,
+          name: item.name,
+          price: item.price,
+          stock_quantity: item.quantity || 0,
+          category_id: null,
+          image_url: item.image || null,
+          is_veg: item.is_veg ?? true,
+          is_popular: item.is_popular ?? false,
+          is_available: item.is_available ?? true,
+          available_time_periods: (item.available_time_periods || []) as ('breakfast' | 'lunch' | 'snacks' | 'dinner')[],
+          description: item.description || null,
+        }])
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-menu-items'] });
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] });
     },
   });
 }
 
+// Update an existing menu item
 export function useUpdateMenuItem() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async (update: Partial<MenuItem> & { id: string }) => {
-      await delay();
-      const items = getStoredData(MENU_ITEMS_KEY, generateDefaultMenuItems);
-      const updatedItems = items.map(item => 
-        item.id === update.id ? { ...item, ...update } : item
-      );
-      setStoredData(MENU_ITEMS_KEY, updatedItems);
-      return updatedItems.find(item => item.id === update.id);
+    mutationFn: async (update: {
+      id: string;
+      name?: string;
+      price?: number;
+      quantity?: number;
+      category?: string;
+      image?: string;
+      is_veg?: boolean;
+      is_popular?: boolean;
+      is_available?: boolean;
+      available_time_periods?: string[];
+      description?: string;
+    }) => {
+      const { id, quantity, image, category, ...rest } = update;
+
+      const updateData: Record<string, unknown> = { ...rest };
+      
+      if (quantity !== undefined) {
+        updateData.stock_quantity = quantity;
+      }
+      if (image !== undefined) {
+        updateData.image_url = image;
+      }
+
+      const { data, error } = await supabase
+        .from('menu_items')
+        .update(updateData)
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-menu-items'] });
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] });
     },
   });
 }
 
+// Delete a menu item
 export function useDeleteMenuItem() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async (id: string) => {
-      await delay();
-      const items = getStoredData(MENU_ITEMS_KEY, generateDefaultMenuItems);
-      const updatedItems = items.filter(item => item.id !== id);
-      setStoredData(MENU_ITEMS_KEY, updatedItems);
+      const { error } = await supabase
+        .from('menu_items')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
       return id;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-menu-items'] });
+      queryClient.invalidateQueries({ queryKey: ['menu-items'] });
     },
   });
 }
 
+// Fetch orders for the current campus
 export function useAdminOrders() {
+  const { campus } = useCampus();
+
   return useQuery({
-    queryKey: ['admin-orders'],
+    queryKey: ['admin-orders', campus?.id],
     queryFn: async () => {
-      await delay();
-      return getStoredData(ORDERS_KEY, generateDefaultOrders);
+      if (!campus?.id) return [];
+
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            name,
+            price,
+            quantity
+          )
+        `)
+        .eq('campus_id', campus.id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      if (error) throw error;
+
+      return (data || []).map(order => ({
+        id: order.id,
+        order_number: order.order_number,
+        user_id: order.user_id,
+        items: order.order_items || [],
+        total: Number(order.total),
+        status: order.status,
+        created_at: order.created_at,
+        user_name: order.customer_name || 'Guest',
+        is_used: order.is_used,
+        qr_code: order.qr_code,
+      }));
     },
+    enabled: !!campus?.id,
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
 }
 
+// Update order status
 export function useUpdateOrderStatus() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      await delay();
-      const orders = getStoredData(ORDERS_KEY, generateDefaultOrders);
-      const updatedOrders = orders.map(order => 
-        order.id === id ? { ...order, status: status as Order['status'] } : order
-      );
-      setStoredData(ORDERS_KEY, updatedOrders);
-      return updatedOrders.find(order => order.id === id);
+    mutationFn: async ({ id, status }: { id: string; status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled' }) => {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ status })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
@@ -193,34 +272,92 @@ export function useUpdateOrderStatus() {
   });
 }
 
+// Get order statistics
 export function useOrderStats() {
+  const { campus } = useCampus();
+
   return useQuery({
-    queryKey: ['order-stats'],
-    queryFn: async () => {
-      await delay();
-      // Calculate stats from stored orders
-      const orders = getStoredData(ORDERS_KEY, generateDefaultOrders);
-      const stored = getStoredData(STATS_KEY, generateDefaultStats);
+    queryKey: ['order-stats', campus?.id],
+    queryFn: async (): Promise<OrderStats> => {
+      if (!campus?.id) {
+        return {
+          totalRevenue: 0,
+          totalOrders: 0,
+          avgOrderValue: 0,
+          todayOrders: 0,
+          chartData: [],
+        };
+      }
+
+      // Get orders from last 7 days
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select('total, created_at, status')
+        .eq('campus_id', campus.id)
+        .gte('created_at', sevenDaysAgo.toISOString())
+        .neq('status', 'cancelled');
+
+      if (error) throw error;
+
+      const ordersList = orders || [];
       
-      // Update with real order count
+      // Calculate stats
+      const totalRevenue = ordersList.reduce((sum, o) => sum + Number(o.total), 0);
+      const totalOrders = ordersList.length;
+      const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+
+      // Today's orders
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todayOrders = ordersList.filter(o => new Date(o.created_at) >= today).length;
+
+      // Chart data by day
+      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const chartData: { day: string; revenue: number; orders: number }[] = [];
+
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
+        
+        const nextDate = new Date(date);
+        nextDate.setDate(nextDate.getDate() + 1);
+
+        const dayOrders = ordersList.filter(o => {
+          const orderDate = new Date(o.created_at);
+          return orderDate >= date && orderDate < nextDate;
+        });
+
+        chartData.push({
+          day: dayNames[date.getDay()],
+          revenue: dayOrders.reduce((sum, o) => sum + Number(o.total), 0),
+          orders: dayOrders.length,
+        });
+      }
+
       return {
-        ...stored,
-        totalOrders: orders.length + stored.totalOrders,
+        totalRevenue,
+        totalOrders,
+        avgOrderValue,
+        todayOrders,
+        chartData,
       };
     },
+    enabled: !!campus?.id,
   });
 }
 
-// Utility to reset all admin data
+// Utility to reset admin data (for testing)
 export function useResetAdminData() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: async () => {
-      await delay();
-      localStorage.removeItem(MENU_ITEMS_KEY);
-      localStorage.removeItem(ORDERS_KEY);
-      localStorage.removeItem(STATS_KEY);
+      // This doesn't actually delete data, just invalidates caches
+      return Promise.resolve();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin-menu-items'] });

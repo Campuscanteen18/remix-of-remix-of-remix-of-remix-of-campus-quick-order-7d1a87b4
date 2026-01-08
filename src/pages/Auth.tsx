@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,8 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/Logo';
-import { useAuth } from '@/context/AuthContext';
 import { useCampus } from '@/context/CampusContext';
+import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
 import { Mail, Lock, User, ArrowRight, Loader2, Building2 } from 'lucide-react';
 
@@ -19,8 +19,8 @@ const nameSchema = z.string().trim().min(2, 'Name must be at least 2 characters'
 export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { login, signup, isLoading } = useAuth();
   const { campus } = useCampus();
+  const [isLoading, setIsLoading] = useState(false);
   
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -28,6 +28,58 @@ export default function Auth() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        // User is already logged in, redirect based on role
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (roles?.role === 'admin') {
+          navigate('/admin');
+        } else if (roles?.role === 'kiosk') {
+          navigate('/kiosk-scanner');
+        } else {
+          navigate('/menu');
+        }
+      }
+    };
+    checkSession();
+  }, [navigate]);
+
+  // Listen for auth state changes
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          // Defer role lookup to prevent deadlock
+          setTimeout(async () => {
+            const { data: roles } = await supabase
+              .from('user_roles')
+              .select('role')
+              .eq('user_id', session.user.id)
+              .single();
+
+            if (roles?.role === 'admin') {
+              navigate('/admin');
+            } else if (roles?.role === 'kiosk') {
+              navigate('/kiosk-scanner');
+            } else {
+              navigate('/menu');
+            }
+          }, 0);
+        }
+      }
+    );
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   const clearErrors = () => setErrors({});
 
@@ -91,30 +143,40 @@ export default function Auth() {
     
     if (!validateLoginForm()) return;
 
-    const result = await login(loginEmail.trim(), loginPassword);
+    setIsLoading(true);
     
-    if (result.success) {
-      const roleDisplay = result.role === 'admin' ? 'Admin' : result.role === 'kiosk' ? 'Kiosk' : 'Student';
-      
-      toast({
-        title: `Welcome back, ${roleDisplay}!`,
-        description: 'Successfully logged in.',
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: loginEmail.trim(),
+        password: loginPassword,
       });
       
-      // Role-based redirect
-      if (result.role === 'admin') {
-        navigate('/admin');
-      } else if (result.role === 'kiosk') {
-        navigate('/kiosk-scanner');
-      } else {
-        navigate('/menu');
+      if (error) {
+        toast({
+          title: 'Login Failed',
+          description: error.message === 'Invalid login credentials' 
+            ? 'Invalid email or password. Please try again.' 
+            : error.message,
+          variant: 'destructive',
+        });
+        return;
       }
-    } else {
+
+      if (data.user) {
+        toast({
+          title: 'Welcome back!',
+          description: 'Successfully logged in.',
+        });
+        // Navigation happens via onAuthStateChange
+      }
+    } catch (error) {
       toast({
         title: 'Login Failed',
-        description: result.error || 'Please check your credentials.',
+        description: 'An unexpected error occurred. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -124,20 +186,79 @@ export default function Auth() {
     
     if (!validateSignupForm()) return;
 
-    const result = await signup(signupEmail.trim(), signupPassword, signupName.trim());
-    
-    if (result.success) {
+    if (!campus?.id) {
       toast({
-        title: 'Account Created!',
-        description: 'Welcome to Campus Canteen.',
-      });
-      navigate('/menu');
-    } else {
-      toast({
-        title: 'Signup Failed',
-        description: result.error || 'Please try again.',
+        title: 'Campus Required',
+        description: 'Please select a campus before signing up.',
         variant: 'destructive',
       });
+      navigate('/select-campus');
+      return;
+    }
+
+    setIsLoading(true);
+    
+    try {
+      const redirectUrl = `${window.location.origin}/`;
+      
+      const { data, error } = await supabase.auth.signUp({
+        email: signupEmail.trim(),
+        password: signupPassword,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            campus_id: campus.id,
+            full_name: signupName.trim(),
+          },
+        },
+      });
+      
+      if (error) {
+        let errorMessage = error.message;
+        
+        if (error.message.includes('already registered')) {
+          errorMessage = 'This email is already registered. Please login instead.';
+        }
+        
+        toast({
+          title: 'Signup Failed',
+          description: errorMessage,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      if (data.user) {
+        // Check if email confirmation is required
+        if (data.user.identities?.length === 0) {
+          toast({
+            title: 'Email Already Exists',
+            description: 'This email is already registered. Please login instead.',
+            variant: 'destructive',
+          });
+        } else if (data.session) {
+          // User is auto-confirmed and logged in
+          toast({
+            title: 'Account Created!',
+            description: 'Welcome to Campus Canteen.',
+          });
+          // Navigation happens via onAuthStateChange
+        } else {
+          // Email confirmation required
+          toast({
+            title: 'Check Your Email',
+            description: 'We sent you a confirmation link. Please check your inbox.',
+          });
+        }
+      }
+    } catch (error) {
+      toast({
+        title: 'Signup Failed',
+        description: 'An unexpected error occurred. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -231,14 +352,6 @@ export default function Auth() {
                   )}
                 </Button>
               </form>
-              
-              {/* Demo Credentials Hint */}
-              <div className="mt-4 p-3 rounded-lg bg-muted/50 text-xs text-muted-foreground">
-                <p className="font-semibold mb-1">Demo Accounts:</p>
-                <p>• <code className="bg-background px-1 rounded">admin@canteen.com</code> → Admin</p>
-                <p>• <code className="bg-background px-1 rounded">kiosk@counter.com</code> → Kiosk</p>
-                <p>• <code className="bg-background px-1 rounded">student@college.edu</code> → Student</p>
-              </div>
             </TabsContent>
 
             <TabsContent value="signup" className="mt-0">
