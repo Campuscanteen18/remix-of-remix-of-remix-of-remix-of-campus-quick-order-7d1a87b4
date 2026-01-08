@@ -311,7 +311,45 @@ export default function KioskScanner() {
   useEffect(() => {
     if (showResult) {
       resultTimeoutRef.current = setTimeout(() => {
-        startCamera();
+        setCameraError(null);
+        setOrderDetails(null);
+        setVerified(false);
+        setAlreadyUsed(false);
+        setShowResult(false);
+        setScanning(false);
+        
+        // Start camera with fresh state
+        navigator.mediaDevices.getUserMedia({
+          video: { 
+            facingMode: { ideal: 'environment' },
+            width: { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        }).then(stream => {
+          streamRef.current = stream;
+          setCameraActive(true);
+          
+          requestAnimationFrame(() => {
+            if (videoRef.current && streamRef.current) {
+              videoRef.current.srcObject = streamRef.current;
+              videoRef.current.setAttribute('playsinline', 'true');
+              videoRef.current.muted = true;
+              
+              videoRef.current.onloadedmetadata = () => {
+                videoRef.current?.play().then(() => {
+                  scanQRFromCamera();
+                }).catch(err => {
+                  console.error('Video play error:', err);
+                  setCameraError('Failed to start camera');
+                });
+              };
+            }
+          });
+        }).catch(err => {
+          console.error('Camera error:', err);
+          setCameraActive(false);
+          setCameraError('Camera access denied');
+        });
       }, 4000);
     }
     
@@ -320,7 +358,7 @@ export default function KioskScanner() {
         clearTimeout(resultTimeoutRef.current);
       }
     };
-  }, [showResult, startCamera]);
+  }, [showResult, scanQRFromCamera]);
 
   const handleLogout = async () => {
     stopCamera();
