@@ -231,49 +231,63 @@ export default function KioskScanner() {
   }, [handleQRDetected]);
 
   const startCamera = useCallback(async () => {
+    // Always stop any previous loop/stream first (important for repeated restarts)
+    stopCamera();
+
     setCameraError(null);
     setOrderDetails(null);
     setVerified(false);
     setAlreadyUsed(false);
     setShowResult(false);
     setScanning(false);
-    
+
     // Clear any result timeout
     if (resultTimeoutRef.current) {
       clearTimeout(resultTimeoutRef.current);
+      resultTimeoutRef.current = null;
     }
-    
+
     try {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-      }
-      
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
+        video: {
           facingMode: { ideal: 'environment' },
           width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }
+          height: { ideal: 720 },
+        },
       });
-      
+
       streamRef.current = stream;
       setCameraActive(true);
-      
-      requestAnimationFrame(() => {
-        if (videoRef.current && streamRef.current) {
-          videoRef.current.srcObject = streamRef.current;
-          videoRef.current.setAttribute('playsinline', 'true');
-          videoRef.current.setAttribute('webkit-playsinline', 'true');
-          videoRef.current.muted = true;
-          
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().then(() => {
-              scanQRFromCamera();
-            }).catch(err => {
-              console.error('Video play error:', err);
-              setCameraError('Failed to start camera');
-            });
-          };
+
+      // Wait one frame so the <video> is mounted (it only renders when cameraActive && !showResult)
+      requestAnimationFrame(async () => {
+        const video = videoRef.current;
+        if (!video || !streamRef.current) return;
+
+        // Wait until the video has metadata (so play() reliably works on repeated restarts)
+        const ensureMetadata = () =>
+          new Promise<void>((resolve) => {
+            if (video.readyState >= 1) return resolve();
+            video.onloadedmetadata = function (this: HTMLVideoElement) {
+              // remove handler to avoid stacking
+              this.onloadedmetadata = null;
+              resolve();
+            };
+          });
+
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.muted = true;
+        video.srcObject = streamRef.current;
+
+        try {
+          await ensureMetadata();
+          await video.play();
+          scanQRFromCamera();
+        } catch (err) {
+          console.error('Video play error:', err);
+          setCameraError('Failed to start camera');
+          setCameraActive(false);
         }
       });
     } catch (err) {
@@ -281,7 +295,7 @@ export default function KioskScanner() {
       setCameraActive(false);
       setCameraError('Camera access denied. Please allow camera permissions.');
     }
-  }, [scanQRFromCamera]);
+  }, [scanQRFromCamera, stopCamera]);
 
   // Auto-start camera on mount
   useEffect(() => {
