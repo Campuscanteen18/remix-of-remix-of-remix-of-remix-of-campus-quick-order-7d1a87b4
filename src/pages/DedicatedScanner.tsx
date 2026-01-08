@@ -129,13 +129,14 @@ export default function KioskScanner() {
       const foundOrder = getOrderByQR(cleanedTerm);
 
       if (!foundOrder) {
-        setCameraError('Order not found');
+        // We already stopped the camera in handleQRDetected(); show the result screen so
+        // the existing auto-resume logic reliably restarts the camera.
+        setOrderDetails(null);
+        setVerified(false);
+        setAlreadyUsed(false);
+        setShowResult(true);
+        setScanning(false);
         if (soundEnabled) playErrorSound();
-        // Resume scanning after a moment
-        setTimeout(() => {
-          setCameraError(null);
-          setScanning(false);
-        }, 2000);
         return;
       }
       
