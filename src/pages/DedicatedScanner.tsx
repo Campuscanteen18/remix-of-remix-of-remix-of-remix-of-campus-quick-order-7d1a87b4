@@ -111,12 +111,12 @@ export default function KioskScanner() {
 
   const handleScan = useCallback(async (qrData: string) => {
     if (scanning) return;
-    
+
     setScanning(true);
-    
+
     try {
       const cleanedTerm = qrData.replace('ORDER-', '').trim();
-      
+
       // Check if already scanned in session
       if (scannedOrdersRef.current.has(cleanedTerm)) {
         setAlreadyUsed(true);
@@ -125,7 +125,7 @@ export default function KioskScanner() {
         if (soundEnabled) playErrorSound();
         return;
       }
-      
+
       const foundOrder = getOrderByQR(cleanedTerm);
 
       if (!foundOrder) {
@@ -135,11 +135,10 @@ export default function KioskScanner() {
         setVerified(false);
         setAlreadyUsed(false);
         setShowResult(true);
-        setScanning(false);
         if (soundEnabled) playErrorSound();
         return;
       }
-      
+
       if (scannedOrdersRef.current.has(foundOrder.id) || scannedOrdersRef.current.has(foundOrder.qrCode)) {
         setAlreadyUsed(true);
         setVerified(false);
@@ -180,16 +179,19 @@ export default function KioskScanner() {
         setVerified(true);
         setAlreadyUsed(false);
         if (soundEnabled) playSuccessSound();
-        
+
         // Auto print
         setTimeout(() => printToThermalPrinter({ ...order, qrUsed: true, status: 'collected' }), 300);
       }
-      
+
       setShowResult(true);
     } catch (err) {
       console.error('Scan error:', err);
       setCameraError('Scan failed');
       if (soundEnabled) playErrorSound();
+    } finally {
+      // IMPORTANT: always unlock scanning, otherwise subsequent scans will be ignored and the camera may stay stopped.
+      setScanning(false);
     }
   }, [scanning, getOrderByQR, markOrderCollected, soundEnabled]);
 
