@@ -18,7 +18,8 @@ import Menu from "./pages/Menu";
 import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
 import AdminDashboard from "./pages/AdminDashboard";
-import Scanner from "./pages/Scanner";
+import QRScanner from "./pages/QRScanner";
+import DedicatedScanner from "./pages/DedicatedScanner";
 import MyOrders from "./pages/MyOrders";
 import Profile from "./pages/Profile";
 import OrderDetails from "./pages/OrderDetails";
@@ -71,7 +72,7 @@ const App = () => (
                             path="/scanner" 
                             element={
                               <KioskRoute>
-                                <Scanner mode="staff" />
+                                <QRScanner />
                               </KioskRoute>
                             } 
                           />
@@ -79,7 +80,7 @@ const App = () => (
                             path="/kiosk-scanner" 
                             element={
                               <KioskRoute>
-                                <Scanner mode="kiosk" />
+                                <DedicatedScanner />
                               </KioskRoute>
                             } 
                           />
