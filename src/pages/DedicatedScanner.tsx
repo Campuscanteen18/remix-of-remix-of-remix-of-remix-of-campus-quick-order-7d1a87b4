@@ -177,6 +177,9 @@ export default function KioskScanner() {
         if (soundEnabled) playErrorSound();
         setShowResult(true);
       } else {
+        // Valid + unused: stop the camera to prevent double scans while we verify/print
+        stopCamera();
+
         // Mark as collected
         markOrderCollected(foundOrder.id);
         scannedOrdersRef.current.add(foundOrder.id);
@@ -232,12 +235,14 @@ export default function KioskScanner() {
       // IMPORTANT: always unlock scanning, otherwise subsequent scans will be ignored and the camera may stay stopped.
       setScanning(false);
     }
-  }, [scanning, getOrderByQR, markOrderCollected, soundEnabled, isPrinterConnected, printTicket, toast]);
+  }, [scanning, getOrderByQR, markOrderCollected, soundEnabled, isPrinterConnected, printTicket, toast, stopCamera]);
 
   const handleQRDetected = useCallback(async (qrData: string) => {
-    stopCamera();
+    // Keep the camera running for INVALID / ALREADY USED overlays.
+    // We only stop the camera when we have a valid, unused order (handled inside handleScan).
+    if (scanning) return;
     await handleScan(qrData);
-  }, [stopCamera, handleScan]);
+  }, [scanning, handleScan]);
 
   const scanQRFromCamera = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -389,22 +394,35 @@ export default function KioskScanner() {
     restartCameraRef.current = resetAndRestartCamera;
   }, [resetAndRestartCamera]);
 
-  // Auto resume after showing result
+  // Auto clear overlays / resume
   useEffect(() => {
-    if (showResult) {
-      console.log('showResult is true, scheduling auto-resume in 4 seconds');
+    if (!showResult) return;
+
+    // Clear any pending timeout first
+    if (resultTimeoutRef.current) {
+      clearTimeout(resultTimeoutRef.current);
+      resultTimeoutRef.current = null;
+    }
+
+    if (!verified) {
+      // INVALID / ALREADY USED: keep camera running, just hide the small overlay
       resultTimeoutRef.current = setTimeout(() => {
-        console.log('Auto-resume timeout triggered');
+        setShowResult(false);
+      }, 2000);
+    } else {
+      // VERIFIED full-screen (no printer): restart camera after a short delay
+      resultTimeoutRef.current = setTimeout(() => {
         resetAndRestartCamera();
       }, 4000);
     }
-    
+
     return () => {
       if (resultTimeoutRef.current) {
         clearTimeout(resultTimeoutRef.current);
+        resultTimeoutRef.current = null;
       }
     };
-  }, [showResult, resetAndRestartCamera]);
+  }, [showResult, verified, resetAndRestartCamera]);
 
   const handleLogout = async () => {
     stopCamera();
