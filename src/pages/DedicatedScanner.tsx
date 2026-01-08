@@ -557,8 +557,8 @@ export default function KioskScanner() {
         </div>
       )}
 
-      {/* Camera View - Full Screen */}
-      {cameraActive && !showResult && (
+      {/* Camera View - Full Screen (keep showing during error overlays) */}
+      {cameraActive && (!showResult || !verified) && (
         <>
           <video
             ref={videoRef}
@@ -580,16 +580,35 @@ export default function KioskScanner() {
               <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-primary rounded-br-lg" />
               
               {/* Scanning line animation */}
-              <div className="absolute inset-x-4 h-0.5 bg-primary/80 animate-scan" />
+              {!showResult && <div className="absolute inset-x-4 h-0.5 bg-primary/80 animate-scan" />}
             </div>
           </div>
           
-          {/* Bottom instruction */}
-          <div className="absolute bottom-8 left-0 right-0 flex justify-center">
-            <div className="bg-black/70 backdrop-blur-sm text-white px-6 py-3 rounded-full text-lg font-medium">
-              Point camera at QR code
+          {/* Bottom instruction - hide when showing error result */}
+          {!showResult && (
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+              <div className="bg-black/70 backdrop-blur-sm text-white px-6 py-3 rounded-full text-lg font-medium">
+                Point camera at QR code
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Small Error Overlay on Camera - for ALREADY USED / INVALID */}
+          {showResult && !verified && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-destructive/95 backdrop-blur-sm rounded-2xl px-8 py-6 flex flex-col items-center shadow-2xl animate-in zoom-in-95 duration-200">
+                <XCircle className="w-12 h-12 text-white mb-3" />
+                <h2 className="text-white text-xl font-bold">
+                  {alreadyUsed ? 'ALREADY USED' : 'INVALID'}
+                </h2>
+                <p className="text-white/80 text-sm mt-1 text-center max-w-[200px]">
+                  {alreadyUsed 
+                    ? 'QR already scanned' 
+                    : 'Order not found'}
+                </p>
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -606,66 +625,48 @@ export default function KioskScanner() {
         </div>
       )}
 
-      {/* Result Overlay */}
-      {showResult && (
-        <div className={`flex-1 flex flex-col items-center justify-center p-8 ${
-          verified ? 'bg-green-600' : 'bg-destructive'
-        }`}>
-          {verified ? (
-            <>
-              <CheckCircle className="w-32 h-32 text-white mb-6 animate-bounce" />
-              <h1 className="text-white text-4xl font-bold mb-4">VERIFIED!</h1>
-              {orderDetails && (
-                <div className="text-white/90 text-center">
-                  <p className="text-2xl font-semibold mb-2">Order #{orderDetails.orderNumber}</p>
-                  <p className="text-xl">₹{orderDetails.totalAmount}</p>
-                  <div className="mt-4 space-y-1">
-                    {orderDetails.items.map((item, idx) => (
-                      <p key={idx} className="text-lg">{item.name} × {item.quantity}</p>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <Button
-                variant="secondary"
-                size="lg"
-                onClick={() => {
-                  if (orderDetails && isPrinterConnected) {
-                    printTicket({
-                      orderNumber: orderDetails.orderNumber,
-                      items: orderDetails.items,
-                      totalAmount: orderDetails.totalAmount,
-                      customerName: 'Customer',
-                      createdAt: orderDetails.createdAt,
-                    });
-                  } else if (!isPrinterConnected) {
-                    toast({
-                      title: 'No Printer',
-                      description: 'Connect Bluetooth printer first',
-                      variant: 'destructive',
-                    });
-                  }
-                }}
-                disabled={isPrinting || !isPrinterConnected}
-                className="mt-8 gap-2"
-              >
-                {isPrinting ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
-                {isPrinting ? 'Printing...' : 'Print Receipt'}
-              </Button>
-            </>
-          ) : (
-            <>
-              <XCircle className="w-32 h-32 text-white mb-6" />
-              <h1 className="text-white text-4xl font-bold mb-4">
-                {alreadyUsed ? 'ALREADY USED' : 'INVALID'}
-              </h1>
-              <p className="text-white/90 text-xl text-center">
-                {alreadyUsed 
-                  ? 'This QR code has already been scanned' 
-                  : 'Order not found or invalid QR code'}
-              </p>
-            </>
+      {/* Full Screen Verified Result (only for verified orders without printer) */}
+      {showResult && verified && (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-green-600">
+          <CheckCircle className="w-32 h-32 text-white mb-6 animate-bounce" />
+          <h1 className="text-white text-4xl font-bold mb-4">VERIFIED!</h1>
+          {orderDetails && (
+            <div className="text-white/90 text-center">
+              <p className="text-2xl font-semibold mb-2">Order #{orderDetails.orderNumber}</p>
+              <p className="text-xl">₹{orderDetails.totalAmount}</p>
+              <div className="mt-4 space-y-1">
+                {orderDetails.items.map((item, idx) => (
+                  <p key={idx} className="text-lg">{item.name} × {item.quantity}</p>
+                ))}
+              </div>
+            </div>
           )}
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => {
+              if (orderDetails && isPrinterConnected) {
+                printTicket({
+                  orderNumber: orderDetails.orderNumber,
+                  items: orderDetails.items,
+                  totalAmount: orderDetails.totalAmount,
+                  customerName: 'Customer',
+                  createdAt: orderDetails.createdAt,
+                });
+              } else if (!isPrinterConnected) {
+                toast({
+                  title: 'No Printer',
+                  description: 'Connect Bluetooth printer first',
+                  variant: 'destructive',
+                });
+              }
+            }}
+            disabled={isPrinting || !isPrinterConnected}
+            className="mt-8 gap-2"
+          >
+            {isPrinting ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
+            {isPrinting ? 'Printing...' : 'Print Receipt'}
+          </Button>
           
           {/* Scan Next button */}
           <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center gap-3">
