@@ -103,7 +103,7 @@ export default function Auth() {
       if (result.role === 'admin') {
         navigate('/admin');
       } else if (result.role === 'kiosk') {
-        navigate('/scanner');
+        navigate('/kiosk-scanner');
       } else {
         navigate('/menu');
       }

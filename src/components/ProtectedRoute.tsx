@@ -38,7 +38,7 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
         return <Navigate to="/admin" replace />;
       }
       if (user.role === 'kiosk') {
-        return <Navigate to="/scanner" replace />;
+        return <Navigate to="/kiosk-scanner" replace />;
       }
       // Students go to menu
       return <Navigate to="/menu" replace />;
