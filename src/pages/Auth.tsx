@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/context/AuthContext';
+import { useCampus } from '@/context/CampusContext';
 import { z } from 'zod';
-import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, Building2 } from 'lucide-react';
 
 // Validation schemas
 const emailSchema = z.string().trim().email('Please enter a valid email address').max(255, 'Email is too long');
@@ -19,6 +20,7 @@ export default function Auth() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { login, signup, isLoading } = useAuth();
+  const { campus } = useCampus();
   
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -142,12 +144,20 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-secondary/5">
       <div className="w-full max-w-sm">
+        {/* Campus Badge */}
+        {campus && (
+          <div className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-full bg-primary/10 text-primary w-fit mx-auto">
+            <Building2 size={16} />
+            <span className="text-sm font-semibold">{campus.name}</span>
+          </div>
+        )}
+        
         {/* Logo Section */}
         <div className="text-center mb-6">
           <div className="flex justify-center mb-3">
             <Logo size="lg" showText={false} />
           </div>
-          <h1 className="text-xl font-bold text-foreground">Campus Canteen</h1>
+          <h1 className="text-xl font-bold text-foreground">{campus?.name || 'Campus'} Canteen</h1>
           <p className="text-sm text-muted-foreground">Sign in to order your favorite food</p>
         </div>
 
@@ -314,12 +324,15 @@ export default function Auth() {
           </Tabs>
         </div>
 
-        {/* Back to home */}
-        <p className="text-center text-xs text-muted-foreground mt-4">
-          <button onClick={() => navigate('/')} className="hover:text-primary transition-colors">
-            ← Back to home
+        {/* Switch Campus / Back */}
+        <div className="text-center text-xs text-muted-foreground mt-4 space-y-2">
+          <button 
+            onClick={() => navigate('/select-campus')} 
+            className="hover:text-primary transition-colors"
+          >
+            Switch campus
           </button>
-        </p>
+        </div>
       </div>
     </div>
   );

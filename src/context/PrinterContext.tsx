@@ -1,6 +1,8 @@
 /// <reference path="../types/bluetooth.d.ts" />
 import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useCampus } from '@/context/CampusContext';
+import { PrinterSettings } from '@/types/campus';
 
 interface PrinterDevice {
   device: BluetoothDevice | null;
@@ -21,6 +23,7 @@ interface PrinterContextType {
   printerDevice: PrinterDevice | null;
   isConnecting: boolean;
   isPrinting: boolean;
+  printerSettings: PrinterSettings | null;
   connectPrinter: () => Promise<boolean>;
   disconnectPrinter: () => void;
   printTicket: (orderData: OrderData) => Promise<boolean>;
@@ -43,18 +46,36 @@ const FALLBACK_SERVICE_UUIDS = [
   '0000ff00-0000-1000-8000-00805f9b34fb', // Some thermal printers
 ];
 
+// Default printer settings
+const DEFAULT_PRINTER_SETTINGS: PrinterSettings = {
+  paper_width: '58mm',
+  bluetooth_name_prefix: 'MTP',
+  print_logo: true,
+  footer_text: 'Thank you for your order!',
+};
+
 export function PrinterProvider({ children }: { children: React.ReactNode }) {
   const [isPrinterConnected, setIsPrinterConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isPrinting, setIsPrinting] = useState(false);
   const printerRef = useRef<PrinterDevice | null>(null);
   const { toast } = useToast();
+  const { settings: campusSettings } = useCampus();
+
+  // Get printer settings from campus or use defaults
+  const printerSettings = campusSettings?.printer || DEFAULT_PRINTER_SETTINGS;
 
   // Text encoder for ESC/POS commands
   const textEncoder = new TextEncoder();
 
-  const createESCPOSCommands = (orderData: OrderData): Uint8Array => {
+  const createESCPOSCommands = useCallback((orderData: OrderData): Uint8Array => {
     const commands: number[] = [];
+    
+    // Determine character width based on paper size
+    // 58mm paper: ~32 characters, 80mm paper: ~48 characters
+    const is80mm = printerSettings.paper_width === '80mm';
+    const lineWidth = is80mm ? 48 : 32;
+    const separator = '-'.repeat(lineWidth);
     
     // Initialize printer
     commands.push(ESC, 0x40); // ESC @ - Initialize
@@ -75,7 +96,7 @@ export function PrinterProvider({ children }: { children: React.ReactNode }) {
     commands.push(ESC, 0x45, 0x00); // ESC E 0 - Bold OFF
     
     // Separator
-    commands.push(...textEncoder.encode('--------------------------------\n'));
+    commands.push(...textEncoder.encode(`${separator}\n`));
     
     // Left align for items
     commands.push(ESC, 0x61, 0x00); // ESC a 0 - Left
@@ -92,17 +113,17 @@ export function PrinterProvider({ children }: { children: React.ReactNode }) {
     orderData.items.forEach(item => {
       const itemLine = `${item.quantity}x ${item.name}\n`;
       commands.push(...textEncoder.encode(itemLine));
-      const priceLine = `   ₹${item.price * item.quantity}\n`;
+      const priceLine = `   Rs.${item.price * item.quantity}\n`;
       commands.push(...textEncoder.encode(priceLine));
     });
     
     // Separator
-    commands.push(...textEncoder.encode('--------------------------------\n'));
+    commands.push(...textEncoder.encode(`${separator}\n`));
     
     // Total
     commands.push(ESC, 0x45, 0x01); // Bold ON
     commands.push(GS, 0x21, 0x01); // Slightly larger
-    const totalLine = `TOTAL: ₹${orderData.totalAmount}\n`;
+    const totalLine = `TOTAL: Rs.${orderData.totalAmount}\n`;
     commands.push(...textEncoder.encode(totalLine));
     commands.push(GS, 0x21, 0x00); // Normal size
     commands.push(ESC, 0x45, 0x00); // Bold OFF
@@ -121,16 +142,16 @@ export function PrinterProvider({ children }: { children: React.ReactNode }) {
     });
     commands.push(...textEncoder.encode(`\n${dateStr}\n`));
     
-    // Thank you message
-    commands.push(...textEncoder.encode('\nThank You!\n'));
-    commands.push(...textEncoder.encode('Campus Canteen\n\n'));
+    // Dynamic footer text from campus settings
+    const footerText = printerSettings.footer_text || 'Thank you!';
+    commands.push(...textEncoder.encode(`\n${footerText}\n\n`));
     
     // Feed and cut
     commands.push(ESC, 0x64, 0x04); // ESC d 4 - Feed 4 lines
     commands.push(GS, 0x56, 0x00); // GS V 0 - Full cut
     
     return new Uint8Array(commands);
-  };
+  }, [printerSettings]);
 
   const connectPrinter = useCallback(async (): Promise<boolean> => {
     if (!navigator.bluetooth) {
@@ -145,10 +166,19 @@ export function PrinterProvider({ children }: { children: React.ReactNode }) {
     setIsConnecting(true);
 
     try {
-      // Request Bluetooth device
+      // Build filter based on campus printer settings
+      const namePrefix = printerSettings.bluetooth_name_prefix || 'MTP';
+      
+      // Request Bluetooth device with name prefix filter
       const device = await navigator.bluetooth.requestDevice({
-        acceptAllDevices: true,
+        filters: [{ namePrefix }],
         optionalServices: FALLBACK_SERVICE_UUIDS,
+      }).catch(async () => {
+        // Fallback to accept all devices if prefix filter fails
+        return await navigator.bluetooth.requestDevice({
+          acceptAllDevices: true,
+          optionalServices: FALLBACK_SERVICE_UUIDS,
+        });
       });
 
       if (!device.gatt) {
@@ -286,6 +316,7 @@ export function PrinterProvider({ children }: { children: React.ReactNode }) {
         printerDevice: printerRef.current,
         isConnecting,
         isPrinting,
+        printerSettings,
         connectPrinter,
         disconnectPrinter,
         printTicket,
