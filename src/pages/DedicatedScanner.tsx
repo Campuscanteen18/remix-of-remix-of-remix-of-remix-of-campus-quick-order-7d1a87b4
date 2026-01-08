@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useOrdersContext } from '@/context/OrdersContext';
 import { useAuth } from '@/context/AuthContext';
-import { LogOut, CheckCircle, XCircle, AlertCircle, RefreshCw, Printer, Volume2, VolumeX } from 'lucide-react';
+import { usePrinter } from '@/context/PrinterContext';
+import { LogOut, CheckCircle, XCircle, AlertCircle, RefreshCw, Bluetooth, Volume2, VolumeX, Loader2, Printer } from 'lucide-react';
 import jsQR from 'jsqr';
 
 // Audio feedback using Web Audio API
@@ -77,6 +78,7 @@ export default function KioskScanner() {
   const { toast } = useToast();
   const { orders, markOrderCollected, getOrderByQR } = useOrdersContext();
   const { logout } = useAuth();
+  const { isPrinterConnected, isConnecting, isPrinting, connectPrinter, printTicket } = usePrinter();
   
   const [scanning, setScanning] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
@@ -86,6 +88,7 @@ export default function KioskScanner() {
   const [alreadyUsed, setAlreadyUsed] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showResult, setShowResult] = useState(false);
+  const [printingOrder, setPrintingOrder] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -93,6 +96,7 @@ export default function KioskScanner() {
   const animationRef = useRef<number | null>(null);
   const scannedOrdersRef = useRef<Set<string>>(new Set());
   const resultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const restartCameraRef = useRef<() => void>(() => {});
 
   const stopCamera = useCallback(() => {
     if (animationRef.current) {
@@ -171,6 +175,7 @@ export default function KioskScanner() {
         scannedOrdersRef.current.add(foundOrder.id);
         scannedOrdersRef.current.add(foundOrder.qrCode);
         if (soundEnabled) playErrorSound();
+        setShowResult(true);
       } else {
         // Mark as collected
         markOrderCollected(foundOrder.id);
@@ -180,11 +185,45 @@ export default function KioskScanner() {
         setAlreadyUsed(false);
         if (soundEnabled) playSuccessSound();
 
-        // Auto print
-        setTimeout(() => printToThermalPrinter({ ...order, qrUsed: true, status: 'collected' }), 300);
+        // Print directly to Bluetooth printer - skip result screen for valid orders
+        if (isPrinterConnected) {
+          setPrintingOrder(true);
+          toast({
+            title: '✓ Order Verified',
+            description: `Order #${order.orderNumber} - Printing ticket...`,
+          });
+          
+          // Print to Bluetooth thermal printer
+          const printData = {
+            orderNumber: order.orderNumber,
+            items: order.items,
+            totalAmount: order.totalAmount,
+            customerName: 'Customer',
+            createdAt: order.createdAt,
+          };
+          
+          printTicket(printData).then((success) => {
+            setPrintingOrder(false);
+            if (success) {
+              toast({
+                title: '🖨️ Printed!',
+                description: `Order #${order.orderNumber} ticket printed successfully`,
+              });
+            }
+            // Restart camera for next scan
+            setTimeout(() => restartCameraRef.current(), 1500);
+          });
+          return; // Don't show result screen
+        } else {
+          // No printer connected - show result screen
+          setShowResult(true);
+          toast({
+            title: '⚠️ No Printer',
+            description: 'Connect Bluetooth printer for auto-printing',
+            variant: 'destructive',
+          });
+        }
       }
-
-      setShowResult(true);
     } catch (err) {
       console.error('Scan error:', err);
       setCameraError('Scan failed');
@@ -193,7 +232,7 @@ export default function KioskScanner() {
       // IMPORTANT: always unlock scanning, otherwise subsequent scans will be ignored and the camera may stay stopped.
       setScanning(false);
     }
-  }, [scanning, getOrderByQR, markOrderCollected, soundEnabled]);
+  }, [scanning, getOrderByQR, markOrderCollected, soundEnabled, isPrinterConnected, printTicket, toast]);
 
   const handleQRDetected = useCallback(async (qrData: string) => {
     stopCamera();
@@ -339,10 +378,16 @@ export default function KioskScanner() {
     setVerified(false);
     setAlreadyUsed(false);
     setScanning(false);
+    setPrintingOrder(false);
     
     // Start camera fresh
     startCamera();
   }, [startCamera]);
+
+  // Keep the ref updated so handleScan can access the latest restart function
+  useEffect(() => {
+    restartCameraRef.current = resetAndRestartCamera;
+  }, [resetAndRestartCamera]);
 
   // Auto resume after showing result
   useEffect(() => {
@@ -464,11 +509,23 @@ export default function KioskScanner() {
       {/* Minimal Header */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-          <span className="text-white font-medium text-sm">KIOSK MODE</span>
+          <div className={`w-3 h-3 rounded-full ${isPrinterConnected ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`} />
+          <span className="text-white font-medium text-sm">
+            {isPrinterConnected ? 'PRINTER READY' : 'NO PRINTER'}
+          </span>
         </div>
         
         <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={connectPrinter}
+            disabled={isConnecting || isPrinterConnected}
+            className="text-white hover:bg-white/20 gap-1"
+          >
+            {isConnecting ? <Loader2 size={18} className="animate-spin" /> : <Bluetooth size={18} />}
+            {isPrinterConnected ? 'Connected' : 'Connect'}
+          </Button>
           <Button
             variant="ghost"
             size="icon"
@@ -487,6 +544,18 @@ export default function KioskScanner() {
           </Button>
         </div>
       </div>
+
+      {/* Printing Overlay */}
+      {printingOrder && (
+        <div className="absolute inset-0 z-40 bg-green-600 flex flex-col items-center justify-center">
+          <CheckCircle className="w-24 h-24 text-white mb-4" />
+          <h2 className="text-white text-3xl font-bold mb-2">VERIFIED!</h2>
+          <div className="flex items-center gap-2 text-white/90">
+            <Loader2 className="animate-spin" size={20} />
+            <span className="text-xl">Printing ticket...</span>
+          </div>
+        </div>
+      )}
 
       {/* Camera View - Full Screen */}
       {cameraActive && !showResult && (
@@ -560,11 +629,28 @@ export default function KioskScanner() {
               <Button
                 variant="secondary"
                 size="lg"
-                onClick={() => orderDetails && printToThermalPrinter(orderDetails)}
+                onClick={() => {
+                  if (orderDetails && isPrinterConnected) {
+                    printTicket({
+                      orderNumber: orderDetails.orderNumber,
+                      items: orderDetails.items,
+                      totalAmount: orderDetails.totalAmount,
+                      customerName: 'Customer',
+                      createdAt: orderDetails.createdAt,
+                    });
+                  } else if (!isPrinterConnected) {
+                    toast({
+                      title: 'No Printer',
+                      description: 'Connect Bluetooth printer first',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+                disabled={isPrinting || !isPrinterConnected}
                 className="mt-8 gap-2"
               >
-                <Printer size={20} />
-                Print Receipt
+                {isPrinting ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
+                {isPrinting ? 'Printing...' : 'Print Receipt'}
               </Button>
             </>
           ) : (
