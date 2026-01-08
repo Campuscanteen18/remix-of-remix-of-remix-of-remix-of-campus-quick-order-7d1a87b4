@@ -307,49 +307,33 @@ export default function KioskScanner() {
     };
   }, []);
 
+  const resetAndRestartCamera = useCallback(() => {
+    console.log('Resetting and restarting camera...');
+    // Clear any pending timeout
+    if (resultTimeoutRef.current) {
+      clearTimeout(resultTimeoutRef.current);
+      resultTimeoutRef.current = null;
+    }
+    
+    // Reset all states first
+    setShowResult(false);
+    setCameraError(null);
+    setOrderDetails(null);
+    setVerified(false);
+    setAlreadyUsed(false);
+    setScanning(false);
+    
+    // Start camera fresh
+    startCamera();
+  }, [startCamera]);
+
   // Auto resume after showing result
   useEffect(() => {
     if (showResult) {
+      console.log('showResult is true, scheduling auto-resume in 4 seconds');
       resultTimeoutRef.current = setTimeout(() => {
-        setCameraError(null);
-        setOrderDetails(null);
-        setVerified(false);
-        setAlreadyUsed(false);
-        setShowResult(false);
-        setScanning(false);
-        
-        // Start camera with fresh state
-        navigator.mediaDevices.getUserMedia({
-          video: { 
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          }
-        }).then(stream => {
-          streamRef.current = stream;
-          setCameraActive(true);
-          
-          requestAnimationFrame(() => {
-            if (videoRef.current && streamRef.current) {
-              videoRef.current.srcObject = streamRef.current;
-              videoRef.current.setAttribute('playsinline', 'true');
-              videoRef.current.muted = true;
-              
-              videoRef.current.onloadedmetadata = () => {
-                videoRef.current?.play().then(() => {
-                  scanQRFromCamera();
-                }).catch(err => {
-                  console.error('Video play error:', err);
-                  setCameraError('Failed to start camera');
-                });
-              };
-            }
-          });
-        }).catch(err => {
-          console.error('Camera error:', err);
-          setCameraActive(false);
-          setCameraError('Camera access denied');
-        });
+        console.log('Auto-resume timeout triggered');
+        resetAndRestartCamera();
       }, 4000);
     }
     
@@ -358,7 +342,7 @@ export default function KioskScanner() {
         clearTimeout(resultTimeoutRef.current);
       }
     };
-  }, [showResult, scanQRFromCamera]);
+  }, [showResult, resetAndRestartCamera]);
 
   const handleLogout = async () => {
     stopCamera();
@@ -580,10 +564,18 @@ export default function KioskScanner() {
             </>
           )}
           
-          {/* Auto resume indicator */}
-          <div className="absolute bottom-8 left-0 right-0 flex justify-center">
-            <div className="bg-black/30 text-white/80 px-4 py-2 rounded-full text-sm">
-              Resuming scanner in a moment...
+          {/* Scan Next button */}
+          <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center gap-3">
+            <Button
+              size="lg"
+              onClick={resetAndRestartCamera}
+              className="gap-2 bg-white text-black hover:bg-white/90"
+            >
+              <RefreshCw size={20} />
+              Scan Next
+            </Button>
+            <div className="text-white/60 text-sm">
+              or wait for auto-resume...
             </div>
           </div>
         </div>
