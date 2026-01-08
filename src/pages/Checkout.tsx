@@ -1,7 +1,8 @@
-import { ArrowLeft, Smartphone, Minus, Plus, Trash2, ShoppingBag, Wallet, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Smartphone, Minus, Plus, Trash2, ShoppingBag, Wallet, Loader2, AlertCircle, CreditCard, QrCode } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 import { useCart } from '@/context/CartContext';
+import { useCampus } from '@/context/CampusContext';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -13,12 +14,18 @@ import { EmptyState } from '@/components/EmptyState';
 export default function Checkout() {
   const navigate = useNavigate();
   const { cart, totalPrice, totalItems, clearCart, setCurrentOrder, updateQuantity, removeFromCart } = useCart();
+  const { settings } = useCampus();
   const [isCheckingStock, setIsCheckingStock] = useState(false);
   const [showGatewayModal, setShowGatewayModal] = useState(false);
+  const [showUpiQr, setShowUpiQr] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
   const { toast } = useToast();
   const { checkStock } = useStockCheck();
   const { createOrder, isCreating } = useOrders();
+
+  // Get payment settings from campus
+  const paymentSettings = settings?.payment;
+  const paymentProvider = paymentSettings?.provider || 'upi';
 
   // Empty cart - show empty state
   if (cart.length === 0) {
@@ -79,8 +86,15 @@ export default function Checkout() {
         return;
       }
       
-      // All items available - open gateway
-      setShowGatewayModal(true);
+      // All items available - handle based on payment provider
+      if (paymentProvider === 'razorpay' && paymentSettings?.razorpay_key) {
+        handleRazorpayPayment();
+      } else if (paymentProvider === 'upi' && paymentSettings?.upi_id) {
+        setShowUpiQr(true);
+      } else {
+        // Fallback to gateway modal for UPI apps
+        setShowGatewayModal(true);
+      }
     } catch (error) {
       toast({
         title: 'Error',
@@ -92,15 +106,58 @@ export default function Checkout() {
     }
   };
 
-  const handlePayment = async (provider: string) => {
-    setShowGatewayModal(false);
-    
+  // Handle Razorpay payment
+  const handleRazorpayPayment = async () => {
+    if (!paymentSettings?.razorpay_key) {
+      toast({
+        title: 'Configuration Error',
+        description: 'Payment gateway not configured for this campus.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Load Razorpay script dynamically
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    document.body.appendChild(script);
+
+    script.onload = () => {
+      const options = {
+        key: paymentSettings.razorpay_key,
+        amount: totalPrice * 100, // Amount in paise
+        currency: settings?.operational?.currency || 'INR',
+        name: 'Campus Canteen',
+        description: `Order - ${totalItems} items`,
+        handler: async (response: { razorpay_payment_id: string }) => {
+          // Payment successful
+          await handlePaymentSuccess('RAZORPAY', response.razorpay_payment_id);
+        },
+        prefill: {},
+        theme: {
+          color: '#10b981',
+        },
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.open();
+    };
+  };
+
+  // Handle UPI confirmation
+  const handleUpiConfirm = async () => {
+    setShowUpiQr(false);
+    await handlePaymentSuccess('UPI');
+  };
+
+  // Common payment success handler
+  const handlePaymentSuccess = async (provider: string, paymentId?: string) => {
     toast({
-      title: `Redirecting to ${provider}...`,
-      description: "Please complete payment in your app.",
+      title: 'Processing order...',
+      description: 'Please wait while we confirm your order.',
     });
-    
-    // Create order through hook
+
     const order = await createOrder({
       items: [...cart],
       total: totalPrice,
@@ -113,11 +170,23 @@ export default function Checkout() {
       navigate('/order-success');
     } else {
       toast({
-        title: 'Payment Failed',
+        title: 'Order Failed',
         description: 'Could not process your order. Please try again.',
         variant: 'destructive',
       });
     }
+  };
+
+  // Legacy UPI app selection handler
+  const handlePayment = async (provider: string) => {
+    setShowGatewayModal(false);
+    
+    toast({
+      title: `Redirecting to ${provider}...`,
+      description: "Please complete payment in your app.",
+    });
+    
+    await handlePaymentSuccess(provider);
   };
 
   return (
@@ -276,7 +345,40 @@ export default function Checkout() {
         </div>
       </div>
 
-      {/* Gateway Selection Modal */}
+      {/* UPI QR Code Modal */}
+      <Dialog open={showUpiQr} onOpenChange={setShowUpiQr}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center text-xl">Scan to Pay</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col items-center gap-4 py-4">
+            <div className="w-48 h-48 bg-muted rounded-xl flex items-center justify-center">
+              <QrCode size={120} className="text-muted-foreground" />
+            </div>
+            <p className="text-sm text-muted-foreground text-center">
+              Scan this QR code with any UPI app<br />
+              <span className="font-mono text-foreground">{paymentSettings?.upi_id}</span>
+            </p>
+            <p className="text-2xl font-bold text-primary">₹{totalPrice}</p>
+            <Button 
+              className="w-full h-12 font-bold rounded-xl"
+              onClick={handleUpiConfirm}
+              disabled={isCreating}
+            >
+              {isCreating ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                  Processing...
+                </>
+              ) : (
+                'I have paid'
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Gateway Selection Modal (Fallback) */}
       <Dialog open={showGatewayModal} onOpenChange={setShowGatewayModal}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
