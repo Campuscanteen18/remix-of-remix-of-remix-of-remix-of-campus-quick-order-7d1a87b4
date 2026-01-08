@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useOrdersContext } from "@/context/OrdersContext";
 import {
   LogOut,
   ArrowLeft,
@@ -81,14 +81,13 @@ interface OrderDetails {
 export default function QRScanner() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { orders, markOrderCollected, getOrderByQR } = useOrdersContext();
 
   const [qrInput, setQrInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [recentOrders, setRecentOrders] = useState<OrderDetails[]>([]);
-  const [loadingRecent, setLoadingRecent] = useState(true);
   const [verified, setVerified] = useState(false);
   const [alreadyUsed, setAlreadyUsed] = useState(false);
 
@@ -100,51 +99,25 @@ export default function QRScanner() {
   // Track scanned order IDs to prevent duplicate scans in session
   const scannedOrdersRef = useRef<Set<string>>(new Set());
 
-  const fetchRecentOrders = async () => {
-    setLoadingRecent(true);
-    try {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(5);
-
-      if (error) throw error;
-
-      const orders: OrderDetails[] = (data || []).map((order) => ({
-        id: order.id,
-        orderNumber: order.order_number,
-        totalAmount: Number(order.total),
-        status: order.status,
-        paymentStatus: order.payment_status,
-        qrUsed: order.is_used ?? false,
-        createdAt: order.created_at,
-        items: (order.items as unknown as OrderItem[]) || [],
-      }));
-
-      setRecentOrders(orders);
-    } catch (err) {
-      console.error("Failed to fetch recent orders:", err);
-    } finally {
-      setLoadingRecent(false);
-    }
-  };
+  // Get recent orders from context
+  const recentOrders: OrderDetails[] = orders.slice(0, 5).map((order) => ({
+    id: order.id,
+    orderNumber: order.qrCode,
+    totalAmount: order.total,
+    status: order.status,
+    paymentStatus: order.paymentMethod || 'cash',
+    qrUsed: order.isUsed,
+    createdAt: order.createdAt.toISOString(),
+    items: order.items.map(item => ({
+      id: item.id,
+      name: item.name,
+      quantity: item.quantity,
+      price: item.price,
+    })),
+  }));
 
   useEffect(() => {
-    fetchRecentOrders();
-
-    const channel = supabase
-      .channel("orders-scanner")
-      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
-        fetchRecentOrders();
-        if (orderDetails) {
-          handleScan(orderDetails.orderNumber);
-        }
-      })
-      .subscribe();
-
     return () => {
-      supabase.removeChannel(channel);
       stopCamera();
     };
   }, []);
@@ -283,31 +256,18 @@ export default function QRScanner() {
         return;
       }
 
-      let data = null;
+      const foundOrder = getOrderByQR(cleanedTerm);
 
-      const { data: byOrderNum } = await supabase
-        .from("orders")
-        .select("*")
-        .ilike("order_number", `%${cleanedTerm}%`)
-        .limit(1)
-        .maybeSingle();
-
-      if (byOrderNum) {
-        data = byOrderNum;
-      } else {
-        const { data: byId } = await supabase.from("orders").select("*").eq("id", cleanedTerm).maybeSingle();
-
-        data = byId;
-      }
-
-      if (!data) {
+      if (!foundOrder) {
         setError("Order not found. Please check the order number or scan a valid QR code.");
         stopCamera();
+        setScanning(false);
+        setQrInput("");
         return;
       }
 
       // Check if already scanned by order ID
-      if (scannedOrdersRef.current.has(data.id) || scannedOrdersRef.current.has(data.order_number)) {
+      if (scannedOrdersRef.current.has(foundOrder.id) || scannedOrdersRef.current.has(foundOrder.qrCode)) {
         setError("Already scanned in this session");
         playErrorSound();
         stopCamera();
@@ -317,14 +277,19 @@ export default function QRScanner() {
       }
 
       const order: OrderDetails = {
-        id: data.id,
-        orderNumber: data.order_number,
-        totalAmount: Number(data.total),
-        status: data.status,
-        paymentStatus: data.payment_status,
-        qrUsed: data.is_used ?? false,
-        createdAt: data.created_at,
-        items: (data.items as unknown as OrderItem[]) || [],
+        id: foundOrder.id,
+        orderNumber: foundOrder.qrCode,
+        totalAmount: foundOrder.total,
+        status: foundOrder.status,
+        paymentStatus: foundOrder.paymentMethod || 'cash',
+        qrUsed: foundOrder.isUsed,
+        createdAt: foundOrder.createdAt.toISOString(),
+        items: foundOrder.items.map(item => ({
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+        })),
       };
 
       setOrderDetails(order);
@@ -334,9 +299,8 @@ export default function QRScanner() {
       if (order.qrUsed) {
         setAlreadyUsed(true);
         playErrorSound();
-        // Add to scanned set
-        scannedOrdersRef.current.add(data.id);
-        scannedOrdersRef.current.add(data.order_number);
+        scannedOrdersRef.current.add(foundOrder.id);
+        scannedOrdersRef.current.add(foundOrder.qrCode);
         toast({
           title: "Order Expired/Used",
           description: "This QR code has already been scanned and used.",
@@ -344,7 +308,7 @@ export default function QRScanner() {
         });
       } else {
         // Auto verify and print
-        await autoVerifyAndPrint(order);
+        await autoVerifyAndPrint(order, foundOrder.id);
       }
     } catch (err) {
       console.error("Scan error:", err);
@@ -355,27 +319,24 @@ export default function QRScanner() {
     }
   };
 
-  const autoVerifyAndPrint = async (order: OrderDetails) => {
+  const autoVerifyAndPrint = async (order: OrderDetails, orderId: string) => {
     try {
-      const { error } = await supabase.from("orders").update({ is_used: true, status: "completed" }).eq("id", order.id);
-
-      if (error) throw error;
+      markOrderCollected(orderId);
 
       // Add to scanned set to prevent duplicate scans
       scannedOrdersRef.current.add(order.id);
       scannedOrdersRef.current.add(order.orderNumber);
 
-      setOrderDetails({ ...order, qrUsed: true, status: "completed" });
+      setOrderDetails({ ...order, qrUsed: true, status: "collected" });
       setVerified(true);
       playSuccessSound();
       toast({
         title: "✓ Verified!",
         description: `Order ${order.orderNumber} verified and collected.`,
       });
-      fetchRecentOrders();
 
       // Auto print to thermal printer
-      setTimeout(() => printToThermalPrinter({ ...order, qrUsed: true, status: "completed" }), 300);
+      setTimeout(() => printToThermalPrinter({ ...order, qrUsed: true, status: "collected" }), 300);
     } catch (err) {
       toast({
         title: "Error",
@@ -691,15 +652,9 @@ export default function QRScanner() {
         <Card className="rounded-2xl card-shadow">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Recent Orders (Test)</CardTitle>
-            <Button variant="ghost" size="sm" onClick={fetchRecentOrders} disabled={loadingRecent} className="gap-2">
-              <RefreshCw size={14} className={loadingRecent ? "animate-spin" : ""} />
-              Refresh
-            </Button>
           </CardHeader>
           <CardContent>
-            {loadingRecent ? (
-              <p className="text-center text-muted-foreground py-4">Loading...</p>
-            ) : recentOrders.length === 0 ? (
+            {recentOrders.length === 0 ? (
               <p className="text-center text-muted-foreground py-4">No orders yet</p>
             ) : (
               <div className="space-y-2">
