@@ -252,8 +252,10 @@ export default function KioskScanner() {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
     const scan = () => {
+      // Always schedule next frame first to keep scanning alive
+      animationRef.current = requestAnimationFrame(scan);
+      
       if (!ctx || !streamRef.current || video.readyState !== video.HAVE_ENOUGH_DATA) {
-        animationRef.current = requestAnimationFrame(scan);
         return;
       }
       
@@ -268,10 +270,7 @@ export default function KioskScanner() {
       
       if (code && code.data) {
         handleQRDetected(code.data);
-        return;
       }
-      
-      animationRef.current = requestAnimationFrame(scan);
     };
     
     animationRef.current = requestAnimationFrame(scan);
