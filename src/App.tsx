@@ -19,6 +19,7 @@ import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
 import AdminDashboard from "./pages/AdminDashboard";
 import QRScanner from "./pages/QRScanner";
+import KioskScanner from "./pages/KioskScanner";
 import MyOrders from "./pages/MyOrders";
 import Profile from "./pages/Profile";
 import OrderDetails from "./pages/OrderDetails";
@@ -72,6 +73,14 @@ const App = () => (
                             element={
                               <KioskRoute>
                                 <QRScanner />
+                              </KioskRoute>
+                            } 
+                          />
+                          <Route 
+                            path="/kiosk-scanner" 
+                            element={
+                              <KioskRoute>
+                                <KioskScanner />
                               </KioskRoute>
                             } 
                           />
