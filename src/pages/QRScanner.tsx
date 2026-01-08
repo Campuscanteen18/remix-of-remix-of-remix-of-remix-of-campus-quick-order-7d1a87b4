@@ -1,30 +1,42 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Logo } from '@/components/Logo';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { useOrdersContext } from '@/context/OrdersContext';
-import { LogOut, ArrowLeft, Search, CheckCircle, XCircle, AlertCircle, ScanLine, RefreshCw, Camera, Printer, StopCircle } from 'lucide-react';
-import jsQR from 'jsqr';
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
+import { Logo } from "@/components/Logo";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  LogOut,
+  ArrowLeft,
+  Search,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  ScanLine,
+  RefreshCw,
+  Camera,
+  Printer,
+  StopCircle,
+} from "lucide-react";
+import jsQR from "jsqr";
 
 // Audio feedback using Web Audio API
 const playSuccessSound = () => {
   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
   const oscillator = audioContext.createOscillator();
   const gainNode = audioContext.createGain();
-  
+
   oscillator.connect(gainNode);
   gainNode.connect(audioContext.destination);
-  
+
   oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
   oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
   oscillator.frequency.setValueAtTime(1200, audioContext.currentTime + 0.2);
-  
+
   gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
   gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
-  
+
   oscillator.start(audioContext.currentTime);
   oscillator.stop(audioContext.currentTime + 0.4);
 };
@@ -33,17 +45,17 @@ const playErrorSound = () => {
   const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
   const oscillator = audioContext.createOscillator();
   const gainNode = audioContext.createGain();
-  
+
   oscillator.connect(gainNode);
   gainNode.connect(audioContext.destination);
-  
+
   oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
   oscillator.frequency.setValueAtTime(300, audioContext.currentTime + 0.15);
   oscillator.frequency.setValueAtTime(200, audioContext.currentTime + 0.3);
-  
+
   gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
   gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-  
+
   oscillator.start(audioContext.currentTime);
   oscillator.stop(audioContext.currentTime + 0.5);
 };
@@ -69,13 +81,14 @@ interface OrderDetails {
 export default function QRScanner() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { orders, markOrderCollected, getOrderByQR } = useOrdersContext();
-  
-  const [qrInput, setQrInput] = useState('');
+
+  const [qrInput, setQrInput] = useState("");
   const [scanning, setScanning] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [recentOrders, setRecentOrders] = useState<OrderDetails[]>([]);
+  const [loadingRecent, setLoadingRecent] = useState(true);
   const [verified, setVerified] = useState(false);
   const [alreadyUsed, setAlreadyUsed] = useState(false);
 
@@ -83,29 +96,55 @@ export default function QRScanner() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationRef = useRef<number | null>(null);
-  
+
   // Track scanned order IDs to prevent duplicate scans in session
   const scannedOrdersRef = useRef<Set<string>>(new Set());
 
-  // Convert orders to recent orders format
-  const recentOrders: OrderDetails[] = orders.slice(0, 5).map(order => ({
-    id: order.id,
-    orderNumber: order.qrCode,
-    totalAmount: order.total,
-    status: order.status,
-    paymentStatus: order.paymentMethod || 'cash',
-    qrUsed: order.isUsed,
-    createdAt: order.createdAt.toISOString(),
-    items: order.items.map(item => ({
-      id: item.id,
-      name: item.name,
-      quantity: item.quantity,
-      price: item.price,
-    })),
-  }));
+  const fetchRecentOrders = async () => {
+    setLoadingRecent(true);
+    try {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (error) throw error;
+
+      const orders: OrderDetails[] = (data || []).map((order) => ({
+        id: order.id,
+        orderNumber: order.order_number,
+        totalAmount: Number(order.total),
+        status: order.status,
+        paymentStatus: order.payment_status,
+        qrUsed: order.is_used ?? false,
+        createdAt: order.created_at,
+        items: (order.items as unknown as OrderItem[]) || [],
+      }));
+
+      setRecentOrders(orders);
+    } catch (err) {
+      console.error("Failed to fetch recent orders:", err);
+    } finally {
+      setLoadingRecent(false);
+    }
+  };
 
   useEffect(() => {
+    fetchRecentOrders();
+
+    const channel = supabase
+      .channel("orders-scanner")
+      .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => {
+        fetchRecentOrders();
+        if (orderDetails) {
+          handleScan(orderDetails.orderNumber);
+        }
+      })
+      .subscribe();
+
     return () => {
+      supabase.removeChannel(channel);
       stopCamera();
     };
   }, []);
@@ -116,7 +155,7 @@ export default function QRScanner() {
       animationRef.current = null;
     }
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
     if (videoRef.current) {
@@ -125,41 +164,44 @@ export default function QRScanner() {
     setCameraActive(false);
   }, []);
 
-  const handleQRDetected = useCallback(async (qrData: string) => {
-    stopCamera();
-    await handleScan(qrData);
-  }, [stopCamera]);
+  const handleQRDetected = useCallback(
+    async (qrData: string) => {
+      stopCamera();
+      await handleScan(qrData);
+    },
+    [stopCamera],
+  );
 
   const scanQRFromCamera = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
-    
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+
     const scan = () => {
       if (!ctx || !streamRef.current || video.readyState !== video.HAVE_ENOUGH_DATA) {
         animationRef.current = requestAnimationFrame(scan);
         return;
       }
-      
+
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
+
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert',
+        inversionAttempts: "dontInvert",
       });
-      
+
       if (code && code.data) {
         handleQRDetected(code.data);
         return;
       }
-      
+
       animationRef.current = requestAnimationFrame(scan);
     };
-    
+
     animationRef.current = requestAnimationFrame(scan);
   }, [handleQRDetected]);
 
@@ -168,49 +210,52 @@ export default function QRScanner() {
     setOrderDetails(null);
     setVerified(false);
     setAlreadyUsed(false);
-    
+
     try {
       // First stop any existing stream
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
+        streamRef.current.getTracks().forEach((track) => track.stop());
       }
-      
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { 
-          facingMode: { ideal: 'environment' },
+        video: {
+          facingMode: { ideal: "environment" },
           width: { ideal: 640 },
-          height: { ideal: 480 }
-        }
+          height: { ideal: 480 },
+        },
       });
-      
+
       streamRef.current = stream;
       setCameraActive(true);
-      
+
       // Wait for next frame to ensure video element is rendered
       requestAnimationFrame(() => {
         if (videoRef.current && streamRef.current) {
           videoRef.current.srcObject = streamRef.current;
-          videoRef.current.setAttribute('playsinline', 'true');
-          videoRef.current.setAttribute('webkit-playsinline', 'true');
+          videoRef.current.setAttribute("playsinline", "true");
+          videoRef.current.setAttribute("webkit-playsinline", "true");
           videoRef.current.muted = true;
-          
+
           videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().then(() => {
-              console.log('Video playing, starting QR scan');
-              scanQRFromCamera();
-            }).catch(err => {
-              console.error('Video play error:', err);
-            });
+            videoRef.current
+              ?.play()
+              .then(() => {
+                console.log("Video playing, starting QR scan");
+                scanQRFromCamera();
+              })
+              .catch((err) => {
+                console.error("Video play error:", err);
+              });
           };
         }
       });
     } catch (err) {
-      console.error('Camera error:', err);
+      console.error("Camera error:", err);
       setCameraActive(false);
       toast({
-        title: 'Camera Error',
-        description: 'Unable to access camera. Please check permissions and try again.',
-        variant: 'destructive',
+        title: "Camera Error",
+        description: "Unable to access camera. Please check permissions and try again.",
+        variant: "destructive",
       });
     }
   };
@@ -218,7 +263,7 @@ export default function QRScanner() {
   const handleScan = async (searchValue?: string) => {
     const searchTerm = searchValue || qrInput.trim();
     if (!searchTerm) return;
-    
+
     setScanning(true);
     setError(null);
     setOrderDetails(null);
@@ -226,53 +271,60 @@ export default function QRScanner() {
     setAlreadyUsed(false);
 
     try {
-      const cleanedTerm = searchTerm.replace('ORDER-', '').trim();
-      
+      const cleanedTerm = searchTerm.replace("ORDER-", "").trim();
+
       // Check if this order was already scanned in this session
       if (scannedOrdersRef.current.has(cleanedTerm)) {
-        setError('Already scanned in this session');
+        setError("Already scanned in this session");
         playErrorSound();
         stopCamera();
         setScanning(false);
-        setQrInput('');
+        setQrInput("");
         return;
       }
-      
-      // Find order using context
-      const foundOrder = getOrderByQR(cleanedTerm);
 
-      if (!foundOrder) {
-        setError('Order not found. Please check the order number or scan a valid QR code.');
+      let data = null;
+
+      const { data: byOrderNum } = await supabase
+        .from("orders")
+        .select("*")
+        .ilike("order_number", `%${cleanedTerm}%`)
+        .limit(1)
+        .maybeSingle();
+
+      if (byOrderNum) {
+        data = byOrderNum;
+      } else {
+        const { data: byId } = await supabase.from("orders").select("*").eq("id", cleanedTerm).maybeSingle();
+
+        data = byId;
+      }
+
+      if (!data) {
+        setError("Order not found. Please check the order number or scan a valid QR code.");
         stopCamera();
-        setScanning(false);
-        setQrInput('');
         return;
       }
-      
+
       // Check if already scanned by order ID
-      if (scannedOrdersRef.current.has(foundOrder.id) || scannedOrdersRef.current.has(foundOrder.qrCode)) {
-        setError('Already scanned in this session');
+      if (scannedOrdersRef.current.has(data.id) || scannedOrdersRef.current.has(data.order_number)) {
+        setError("Already scanned in this session");
         playErrorSound();
         stopCamera();
         setScanning(false);
-        setQrInput('');
+        setQrInput("");
         return;
       }
 
       const order: OrderDetails = {
-        id: foundOrder.id,
-        orderNumber: foundOrder.qrCode,
-        totalAmount: foundOrder.total,
-        status: foundOrder.status,
-        paymentStatus: foundOrder.paymentMethod || 'cash',
-        qrUsed: foundOrder.isUsed,
-        createdAt: foundOrder.createdAt.toISOString(),
-        items: foundOrder.items.map(item => ({
-          id: item.id,
-          name: item.name,
-          quantity: item.quantity,
-          price: item.price,
-        })),
+        id: data.id,
+        orderNumber: data.order_number,
+        totalAmount: Number(data.total),
+        status: data.status,
+        paymentStatus: data.payment_status,
+        qrUsed: data.is_used ?? false,
+        createdAt: data.created_at,
+        items: (data.items as unknown as OrderItem[]) || [],
       };
 
       setOrderDetails(order);
@@ -283,71 +335,77 @@ export default function QRScanner() {
         setAlreadyUsed(true);
         playErrorSound();
         // Add to scanned set
-        scannedOrdersRef.current.add(foundOrder.id);
-        scannedOrdersRef.current.add(foundOrder.qrCode);
+        scannedOrdersRef.current.add(data.id);
+        scannedOrdersRef.current.add(data.order_number);
         toast({
-          title: 'Order Expired/Used',
-          description: 'This QR code has already been scanned and used.',
-          variant: 'destructive',
+          title: "Order Expired/Used",
+          description: "This QR code has already been scanned and used.",
+          variant: "destructive",
         });
       } else {
         // Auto verify and print
-        await autoVerifyAndPrint(order, foundOrder.id);
+        await autoVerifyAndPrint(order);
       }
     } catch (err) {
-      console.error('Scan error:', err);
-      setError('Failed to fetch order. Please try again.');
+      console.error("Scan error:", err);
+      setError("Failed to fetch order. Please try again.");
     } finally {
       setScanning(false);
-      setQrInput('');
+      setQrInput("");
     }
   };
 
-  const autoVerifyAndPrint = async (order: OrderDetails, orderId: string) => {
+  const autoVerifyAndPrint = async (order: OrderDetails) => {
     try {
-      // Mark order as collected using context
-      markOrderCollected(orderId);
+      const { error } = await supabase.from("orders").update({ is_used: true, status: "completed" }).eq("id", order.id);
+
+      if (error) throw error;
 
       // Add to scanned set to prevent duplicate scans
       scannedOrdersRef.current.add(order.id);
       scannedOrdersRef.current.add(order.orderNumber);
 
-      setOrderDetails({ ...order, qrUsed: true, status: 'collected' });
+      setOrderDetails({ ...order, qrUsed: true, status: "completed" });
       setVerified(true);
       playSuccessSound();
-      toast({ 
-        title: '✓ Verified!', 
-        description: `Order ${order.orderNumber} verified and collected.` 
+      toast({
+        title: "✓ Verified!",
+        description: `Order ${order.orderNumber} verified and collected.`,
       });
+      fetchRecentOrders();
 
       // Auto print to thermal printer
-      setTimeout(() => printToThermalPrinter({ ...order, qrUsed: true, status: 'collected' }), 300);
+      setTimeout(() => printToThermalPrinter({ ...order, qrUsed: true, status: "completed" }), 300);
     } catch (err) {
       toast({
-        title: 'Error',
-        description: 'Failed to mark order as collected.',
-        variant: 'destructive',
+        title: "Error",
+        description: "Failed to mark order as collected.",
+        variant: "destructive",
       });
     }
   };
 
   // Direct thermal/mini printer printing
   const printToThermalPrinter = (order: OrderDetails) => {
-    const printFrame = document.createElement('iframe');
-    printFrame.style.position = 'absolute';
-    printFrame.style.top = '-10000px';
-    printFrame.style.left = '-10000px';
+    const printFrame = document.createElement("iframe");
+    printFrame.style.position = "absolute";
+    printFrame.style.top = "-10000px";
+    printFrame.style.left = "-10000px";
     document.body.appendChild(printFrame);
-    
+
     const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
     if (!frameDoc) return;
 
-    const itemsHTML = order.items.map(item => `
+    const itemsHTML = order.items
+      .map(
+        (item) => `
       <div class="item-row">
         <span>${item.name} x${item.quantity}</span>
         <span>₹${(item.price * item.quantity).toFixed(2)}</span>
       </div>
-    `).join('');
+    `,
+      )
+      .join("");
 
     frameDoc.open();
     frameDoc.write(`
@@ -431,16 +489,15 @@ export default function QRScanner() {
       );
     }
     switch (status) {
-      case 'confirmed':
-      case 'completed':
-      case 'ready':
+      case "confirmed":
+      case "completed":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary/10 text-secondary text-sm font-medium">
             <CheckCircle size={14} />
             Ready
           </span>
         );
-      case 'pending':
+      case "pending":
         return (
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-destructive/10 text-destructive text-sm font-medium">
             <AlertCircle size={14} />
@@ -448,11 +505,7 @@ export default function QRScanner() {
           </span>
         );
       default:
-        return (
-          <span className="px-3 py-1 rounded-full bg-muted text-muted-foreground text-sm">
-            {status}
-          </span>
-        );
+        return <span className="px-3 py-1 rounded-full bg-muted text-muted-foreground text-sm">{status}</span>;
     }
   };
 
@@ -462,24 +515,14 @@ export default function QRScanner() {
       <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-md border-b border-border">
         <div className="flex items-center justify-between px-4 lg:px-6 h-16">
           <div className="flex items-center gap-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => navigate('/admin')}
-              className="gap-1"
-            >
+            <Button variant="ghost" size="sm" onClick={() => navigate("/admin")} className="gap-1">
               <ArrowLeft size={16} />
               Dashboard
             </Button>
             <Logo size="sm" showText={false} />
           </div>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/')}
-            className="rounded-full"
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate("/")} className="rounded-full">
             <LogOut size={18} />
           </Button>
         </div>
@@ -499,7 +542,7 @@ export default function QRScanner() {
         {/* Camera View */}
         {cameraActive && (
           <Card className="rounded-2xl overflow-hidden mb-6">
-            <div className="relative bg-black" style={{ minHeight: '300px' }}>
+            <div className="relative bg-black" style={{ minHeight: "300px" }}>
               <video
                 ref={videoRef}
                 className="absolute inset-0 w-full h-full object-cover"
@@ -507,7 +550,7 @@ export default function QRScanner() {
                 webkit-playsinline="true"
                 muted
                 autoPlay
-                style={{ transform: 'scaleX(1)' }}
+                style={{ transform: "scaleX(1)" }}
               />
               <canvas ref={canvasRef} className="hidden" />
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
@@ -535,11 +578,7 @@ export default function QRScanner() {
           </CardHeader>
           <CardContent className="space-y-4">
             {!cameraActive && (
-              <Button
-                variant="outline"
-                onClick={startCamera}
-                className="w-full h-12 rounded-xl gap-2"
-              >
+              <Button variant="outline" onClick={startCamera} className="w-full h-12 rounded-xl gap-2">
                 <Camera size={18} />
                 Open Camera
               </Button>
@@ -549,16 +588,12 @@ export default function QRScanner() {
                 placeholder="Enter order number (e.g., ORD-ABC123)"
                 value={qrInput}
                 onChange={(e) => setQrInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleScan()}
+                onKeyDown={(e) => e.key === "Enter" && handleScan()}
                 className="flex-1 h-12 rounded-xl"
               />
-              <Button
-                onClick={() => handleScan()} 
-                disabled={scanning}
-                className="h-12 px-6 rounded-xl gap-2"
-              >
+              <Button onClick={() => handleScan()} disabled={scanning} className="h-12 px-6 rounded-xl gap-2">
                 <Search size={18} />
-                {scanning ? 'Scanning...' : 'Scan'}
+                {scanning ? "Scanning..." : "Scan"}
               </Button>
             </div>
           </CardContent>
@@ -578,11 +613,13 @@ export default function QRScanner() {
 
         {/* Order Details */}
         {orderDetails && (
-          <Card className={`rounded-2xl card-shadow animate-slide-up mb-6 ${verified ? 'border-2 border-secondary' : alreadyUsed ? 'border-2 border-destructive' : ''}`}>
+          <Card
+            className={`rounded-2xl card-shadow animate-slide-up mb-6 ${
+              verified ? "border-2 border-secondary" : alreadyUsed ? "border-2 border-destructive" : ""
+            }`}
+          >
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">
-                Order #{orderDetails.orderNumber}
-              </CardTitle>
+              <CardTitle className="text-lg">Order #{orderDetails.orderNumber}</CardTitle>
               {alreadyUsed ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-destructive/10 text-destructive text-sm font-bold">
                   <AlertCircle size={14} />
@@ -654,18 +691,15 @@ export default function QRScanner() {
         <Card className="rounded-2xl card-shadow">
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Recent Orders (Test)</CardTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-2"
-              disabled
-            >
-              <RefreshCw size={14} />
-              Auto-synced
+            <Button variant="ghost" size="sm" onClick={fetchRecentOrders} disabled={loadingRecent} className="gap-2">
+              <RefreshCw size={14} className={loadingRecent ? "animate-spin" : ""} />
+              Refresh
             </Button>
           </CardHeader>
           <CardContent>
-            {recentOrders.length === 0 ? (
+            {loadingRecent ? (
+              <p className="text-center text-muted-foreground py-4">Loading...</p>
+            ) : recentOrders.length === 0 ? (
               <p className="text-center text-muted-foreground py-4">No orders yet</p>
             ) : (
               <div className="space-y-2">
