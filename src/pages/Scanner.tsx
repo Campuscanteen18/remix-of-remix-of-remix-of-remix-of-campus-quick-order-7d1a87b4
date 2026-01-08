@@ -355,9 +355,13 @@ export default function Scanner({ mode = 'staff' }: ScannerProps) {
   }, [qrInput, scanning, getOrderByQR, markOrderCollected, soundEnabled, isKiosk, stopCamera, toast, printToThermalPrinter]);
 
   const handleQRDetected = useCallback(async (qrData: string) => {
-    stopCamera();
+    // Stop the scanning loop first
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
     await handleScan(qrData);
-  }, [stopCamera, handleScan]);
+  }, [handleScan]);
 
   const scanQRFromCamera = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -476,12 +480,17 @@ export default function Scanner({ mode = 'staff' }: ScannerProps) {
     };
   }, [isKiosk, startCamera, stopCamera]);
 
-  // Auto resume after showing result (kiosk mode)
+  // Auto resume after showing result (both modes)
   useEffect(() => {
-    if (isKiosk && showResult) {
+    if (showResult || orderDetails || error) {
       resultTimeoutRef.current = setTimeout(() => {
+        setShowResult(false);
+        setOrderDetails(null);
+        setError(null);
+        setVerified(false);
+        setAlreadyUsed(false);
         startCamera();
-      }, 4000);
+      }, isKiosk ? 4000 : 3000);
     }
     
     return () => {
@@ -489,7 +498,7 @@ export default function Scanner({ mode = 'staff' }: ScannerProps) {
         clearTimeout(resultTimeoutRef.current);
       }
     };
-  }, [showResult, isKiosk, startCamera]);
+  }, [showResult, orderDetails, error, isKiosk, startCamera]);
 
   const handleLogout = async () => {
     stopCamera();
