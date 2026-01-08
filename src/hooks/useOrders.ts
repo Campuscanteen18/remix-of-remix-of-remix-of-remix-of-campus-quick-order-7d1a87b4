@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Order, CartItem } from '@/types/canteen';
 import { useOrdersContext } from '@/context/OrdersContext';
+import { supabase } from '@/integrations/supabase/client';
+import { useCampus } from '@/context/CampusContext';
 
 interface CreateOrderParams {
   items: CartItem[];
@@ -20,36 +22,8 @@ interface UseOrdersReturn {
   refetch: () => Promise<void>;
 }
 
-// Mock orders for demo
-const generateMockOrders = (): Order[] => [
-  {
-    id: 'ord_abc123',
-    items: [
-      { id: '5', name: 'Masala Dosa', description: '', price: 60, image: '', category: 'breakfast', isVeg: true, isAvailable: true, availableTimePeriods: [], quantity: 1 },
-      { id: '6', name: 'Filter Coffee', description: '', price: 25, image: '', category: 'beverages', isVeg: true, isAvailable: true, availableTimePeriods: [], quantity: 2 }
-    ],
-    total: 110,
-    status: 'ready',
-    qrCode: 'ORD-2024-045',
-    createdAt: new Date(Date.now() - 30 * 60000),
-    isUsed: false,
-  },
-  {
-    id: 'ord_def456',
-    items: [
-      { id: '2', name: 'Veg Biryani', description: '', price: 120, image: '', category: 'main-course', isVeg: true, isAvailable: true, availableTimePeriods: [], quantity: 1 },
-    ],
-    total: 120,
-    status: 'preparing',
-    qrCode: 'ORD-2024-044',
-    createdAt: new Date(Date.now() - 45 * 60000),
-    isUsed: false,
-  },
-];
-
 /**
- * Hook for managing orders
- * TODO: Replace with real Supabase queries when Cloud is enabled
+ * Hook for managing orders with Supabase
  */
 export function useOrders(): UseOrdersReturn {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -57,82 +31,156 @@ export function useOrders(): UseOrdersReturn {
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { addOrder } = useOrdersContext();
+  const { campus } = useCampus();
 
   const fetchOrders = useCallback(async () => {
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session?.user || !campus?.id) {
+      setOrders([]);
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      // TODO: Replace with real Supabase query
-      // const { data, error } = await supabase
-      //   .from('orders')
-      //   .select('*, order_items(*)')
-      //   .eq('user_id', userId)
-      //   .order('created_at', { ascending: false });
-      
-      setOrders(generateMockOrders());
+      const { data, error: fetchError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            name,
+            price,
+            quantity
+          )
+        `)
+        .eq('user_id', session.session.user.id)
+        .eq('campus_id', campus.id)
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (fetchError) throw fetchError;
+
+      // Transform to match Order type
+      const transformedOrders: Order[] = (data || []).map(order => ({
+        id: order.id,
+        items: (order.order_items || []).map((item: { id: string; name: string; price: number; quantity: number }) => ({
+          id: item.id,
+          name: item.name,
+          description: '',
+          price: Number(item.price),
+          image: '',
+          category: '',
+          isVeg: true,
+          isAvailable: true,
+          availableTimePeriods: [],
+          quantity: item.quantity,
+        })),
+        total: Number(order.total),
+        status: order.status as Order['status'],
+        qrCode: order.order_number,
+        createdAt: new Date(order.created_at),
+        isUsed: order.is_used,
+        customerName: order.customer_name || undefined,
+        customerEmail: order.customer_email || undefined,
+        paymentMethod: order.payment_method || undefined,
+      }));
+
+      setOrders(transformedOrders);
     } catch (err) {
-      setError('Failed to load orders. Please try again.');
       console.error('Error fetching orders:', err);
+      setError('Failed to load orders. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [campus?.id]);
 
   useEffect(() => {
     fetchOrders();
   }, [fetchOrders]);
 
   const createOrder = useCallback(async (params: CreateOrderParams): Promise<Order | null> => {
+    const { data: session } = await supabase.auth.getSession();
+    if (!session.session?.user || !campus?.id) {
+      setError('Please login to place an order');
+      return null;
+    }
+
     setIsCreating(true);
     setError(null);
     
     try {
-      // Simulate API delay for payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // TODO: Replace with real Supabase insert
-      // const { data, error } = await supabase
-      //   .from('orders')
-      //   .insert({ user_id: userId, total: params.total, payment_method: params.paymentMethod })
-      //   .select()
-      //   .single();
-      
-      // Generate numeric order ID like ORDER6374
-      const orderNum = Math.floor(1000 + Math.random() * 9000); // 4-digit random number
-      const orderId = `ORDER${orderNum}`;
-      
+      // Get user profile for customer info
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name, email')
+        .eq('user_id', session.session.user.id)
+        .maybeSingle();
+
+      // Create the order
+      const { data: orderData, error: orderError } = await supabase
+        .from('orders')
+        .insert([{
+          campus_id: campus.id,
+          user_id: session.session.user.id,
+          total: params.total,
+          order_number: '', // Will be generated by trigger
+          payment_method: params.paymentMethod,
+          payment_status: 'completed',
+          customer_name: params.customerName || profile?.full_name || 'Guest',
+          customer_email: params.customerEmail || profile?.email || session.session.user.email,
+        }])
+        .select()
+        .single();
+
+      if (orderError) throw orderError;
+
+      // Insert order items
+      const orderItems = params.items.map(item => ({
+        order_id: orderData.id,
+        menu_item_id: item.id,
+        name: item.name,
+        price: item.price,
+        quantity: item.quantity,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .insert(orderItems);
+
+      if (itemsError) throw itemsError;
+
+      // Create local order object
       const newOrder: Order = {
-        id: orderId,
+        id: orderData.id,
         items: params.items,
         total: params.total,
-        status: 'confirmed',
-        qrCode: orderId, // QR contains just ORDER6374
-        createdAt: new Date(),
-        isUsed: false,
-        customerName: params.customerName,
-        customerEmail: params.customerEmail,
-        paymentMethod: params.paymentMethod,
+        status: orderData.status as Order['status'],
+        qrCode: orderData.order_number,
+        createdAt: new Date(orderData.created_at),
+        isUsed: orderData.is_used,
+        customerName: orderData.customer_name || undefined,
+        customerEmail: orderData.customer_email || undefined,
+        paymentMethod: orderData.payment_method || undefined,
       };
 
-      // Add to global context (persists to localStorage)
+      // Add to global context
       addOrder(newOrder);
       
       setOrders(prev => [newOrder, ...prev]);
       return newOrder;
     } catch (err) {
-      setError('Failed to create order. Please try again.');
       console.error('Error creating order:', err);
+      setError('Failed to create order. Please try again.');
       return null;
     } finally {
       setIsCreating(false);
     }
-  }, []);
+  }, [campus?.id, addOrder]);
 
-  // Filter only active orders (paid and uncollected)
+  // Filter only active orders (not collected)
   const activeOrders = orders.filter(order => 
     order.status !== 'collected' && !order.isUsed
   );
