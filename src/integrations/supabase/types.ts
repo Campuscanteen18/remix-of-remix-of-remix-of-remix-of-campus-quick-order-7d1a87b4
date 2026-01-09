@@ -137,6 +137,13 @@ export type Database = {
             foreignKeyName: "categories_campus_id_fkey"
             columns: ["campus_id"]
             isOneToOne: false
+            referencedRelation: "campus_public_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "categories_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
             referencedRelation: "campuses"
             referencedColumns: ["id"]
           },
@@ -165,6 +172,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "favorites_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campus_public_info"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "favorites_campus_id_fkey"
             columns: ["campus_id"]
@@ -237,6 +251,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "menu_items_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campus_public_info"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "menu_items_campus_id_fkey"
             columns: ["campus_id"]
@@ -355,6 +376,13 @@ export type Database = {
             foreignKeyName: "orders_campus_id_fkey"
             columns: ["campus_id"]
             isOneToOne: false
+            referencedRelation: "campus_public_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
             referencedRelation: "campuses"
             referencedColumns: ["id"]
           },
@@ -399,6 +427,13 @@ export type Database = {
             foreignKeyName: "profiles_campus_id_fkey"
             columns: ["campus_id"]
             isOneToOne: false
+            referencedRelation: "campus_public_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
             referencedRelation: "campuses"
             referencedColumns: ["id"]
           },
@@ -431,6 +466,13 @@ export type Database = {
             foreignKeyName: "user_roles_campus_id_fkey"
             columns: ["campus_id"]
             isOneToOne: false
+            referencedRelation: "campus_public_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_roles_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
             referencedRelation: "campuses"
             referencedColumns: ["id"]
           },
@@ -438,6 +480,39 @@ export type Database = {
       }
     }
     Views: {
+      campus_public_info: {
+        Row: {
+          address: string | null
+          branding: Json | null
+          code: string | null
+          id: string | null
+          is_active: boolean | null
+          logo_url: string | null
+          name: string | null
+          public_operational_settings: Json | null
+        }
+        Insert: {
+          address?: string | null
+          branding?: never
+          code?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string | null
+          public_operational_settings?: never
+        }
+        Update: {
+          address?: string | null
+          branding?: never
+          code?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string | null
+          public_operational_settings?: never
+        }
+        Relationships: []
+      }
       profiles_readable: {
         Row: {
           campus_code: string | null
