@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, ChevronRight, LogOut, KeyRound, HelpCircle, Package, Clock, Pencil } from 'lucide-react';
+import { X, ChevronRight, LogOut, KeyRound, HelpCircle, Package, Clock, Pencil, Loader2 } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -9,6 +9,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
+
+interface Order {
+  id: string;
+  order_number: string;
+  created_at: string;
+  total: number;
+  status: string;
+  items: string[];
+}
 
 interface MobileProfilePanelProps {
   isOpen: boolean;
@@ -29,30 +39,54 @@ export function MobileProfilePanel({
   const userName = authUser?.fullName || 'Guest User';
   const userEmail = authUser?.email || 'guest@example.com';
 
-  // Mock order history
-  const [orders] = useState([
-    {
-      id: 'ORD-2024-001',
-      date: '2024-01-08',
-      items: ['Masala Dosa', 'Filter Coffee'],
-      total: 85,
-      status: 'Delivered'
-    },
-    {
-      id: 'ORD-2024-002',
-      date: '2024-01-06',
-      items: ['Veg Biryani', 'Raita'],
-      total: 120,
-      status: 'Delivered'
-    },
-    {
-      id: 'ORD-2024-003',
-      date: '2024-01-04',
-      items: ['Samosa (2)', 'Chai'],
-      total: 40,
-      status: 'Delivered'
+  // Real orders from database
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fetch orders when panel opens
+  useEffect(() => {
+    if (isOpen && authUser?.id) {
+      fetchOrders();
     }
-  ]);
+  }, [isOpen, authUser?.id]);
+
+  const fetchOrders = async () => {
+    if (!authUser?.id) return;
+    
+    setIsLoading(true);
+    try {
+      // Fetch orders with their items
+      const { data: ordersData, error: ordersError } = await supabase
+        .from('orders')
+        .select('id, order_number, created_at, total, status')
+        .eq('user_id', authUser.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (ordersError) throw ordersError;
+
+      // Fetch order items for each order
+      const ordersWithItems = await Promise.all(
+        (ordersData || []).map(async (order) => {
+          const { data: itemsData } = await supabase
+            .from('order_items')
+            .select('name')
+            .eq('order_id', order.id);
+          
+          return {
+            ...order,
+            items: itemsData?.map(item => item.name) || []
+          };
+        })
+      );
+
+      setOrders(ordersWithItems);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Dialog states
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
@@ -141,7 +175,11 @@ export function MobileProfilePanel({
                 </button>
               </div>
               
-              {orders.length > 0 ? (
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                </div>
+              ) : orders.length > 0 ? (
                 <div className="space-y-3">
                   {orders.slice(0, 2).map((order) => (
                     <div 
@@ -149,16 +187,24 @@ export function MobileProfilePanel({
                       className="bg-muted/50 rounded-xl p-3 border border-border"
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-muted-foreground">{order.id}</span>
-                        <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
-                          {order.status}
+                        <span className="text-xs font-medium text-muted-foreground">{order.order_number}</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          order.status === 'delivered' 
+                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                            : order.status === 'pending'
+                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
+                            : order.status === 'preparing'
+                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                            : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+                        }`}>
+                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                         </span>
                       </div>
-                      <p className="font-medium text-sm">{order.items.join(', ')}</p>
+                      <p className="font-medium text-sm">{order.items.join(', ') || 'No items'}</p>
                       <div className="flex items-center justify-between mt-2">
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
                           <Clock size={12} />
-                          <span>{new Date(order.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                          <span>{new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
                         </div>
                         <span className="font-bold text-primary">₹{order.total}</span>
                       </div>
