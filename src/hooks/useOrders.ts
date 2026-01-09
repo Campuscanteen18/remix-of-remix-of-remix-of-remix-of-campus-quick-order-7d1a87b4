@@ -94,6 +94,7 @@ export function useOrders(): UseOrdersReturn {
         customerName: order.customer_name || undefined,
         customerEmail: order.customer_email || undefined,
         paymentMethod: order.payment_method || undefined,
+        paymentStatus: order.payment_status || undefined,
       }));
 
       console.log('useOrders: Transformed orders:', transformedOrders);

@@ -26,6 +26,7 @@ export interface Order {
   customerName?: string;
   customerEmail?: string;
   paymentMethod?: string;
+  paymentStatus?: string;
 }
 
 export interface TimePeriod {
