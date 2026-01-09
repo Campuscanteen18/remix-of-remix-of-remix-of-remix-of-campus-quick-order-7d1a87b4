@@ -6,11 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// DEMO MODE: Simulates PhonePe payment flow
-// When you have real PhonePe Business credentials, replace these:
-// const PHONEPE_HOST_URL = "https://api-preprod.phonepe.com/apis/pg-sandbox"; // For sandbox
-// const PHONEPE_HOST_URL = "https://api.phonepe.com/apis/hermes"; // For production
-const DEMO_MODE = true;
+// DEMO MODE: Automatically disabled when PhonePe credentials are configured
+// When you have real PhonePe Business credentials, set these environment variables:
+// PHONEPE_MERCHANT_ID, PHONEPE_SALT_KEY, PHONEPE_SALT_INDEX, PHONEPE_HOST_URL
+const DEMO_MODE = !Deno.env.get('PHONEPE_MERCHANT_ID');
 
 // SHA256 hash function (for real PhonePe integration)
 async function sha256(message: string): Promise<string> {
