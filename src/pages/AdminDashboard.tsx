@@ -276,13 +276,7 @@ export default function AdminDashboard() {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-md border-b border-border">
         <div className="flex items-center justify-between px-4 lg:px-6 h-16">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1">
-              <ArrowLeft size={16} />
-              <span className="hidden sm:inline">Back</span>
-            </Button>
-            <Logo size="sm" />
-          </div>
+          <Logo size="sm" />
 
           <div className="flex items-center gap-2">
             <Button onClick={() => navigate("/scanner")} className="gap-2 rounded-full bg-secondary hover:bg-secondary/90 text-secondary-foreground">
