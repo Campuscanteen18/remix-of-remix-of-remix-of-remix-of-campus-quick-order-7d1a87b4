@@ -387,6 +387,20 @@ export type Database = {
       }
     }
     Views: {
+      profiles_readable: {
+        Row: {
+          campus_code: string | null
+          campus_name: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string | null
+          phone: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
       user_roles_readable: {
         Row: {
           campus_code: string | null
