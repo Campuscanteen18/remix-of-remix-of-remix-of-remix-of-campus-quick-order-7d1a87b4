@@ -21,7 +21,7 @@ import Menu from "./pages/Menu";
 import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
 import AdminDashboard from "./pages/AdminDashboard";
-import QRScanner from "./pages/QRScanner";
+
 import DedicatedScanner from "./pages/DedicatedScanner";
 import MyOrders from "./pages/MyOrders";
 import Profile from "./pages/Profile";
@@ -107,16 +107,6 @@ const App = () => (
                                   <AdminRoute>
                                     <AdminDashboard />
                                   </AdminRoute>
-                                </CampusGate>
-                              } 
-                            />
-                            <Route 
-                              path="/scanner" 
-                              element={
-                                <CampusGate>
-                                  <KioskRoute>
-                                    <QRScanner />
-                                  </KioskRoute>
                                 </CampusGate>
                               } 
                             />
