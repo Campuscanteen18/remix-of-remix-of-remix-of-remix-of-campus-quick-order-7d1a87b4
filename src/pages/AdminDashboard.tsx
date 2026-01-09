@@ -279,7 +279,7 @@ export default function AdminDashboard() {
           <Logo size="sm" />
 
           <div className="flex items-center gap-2">
-            <Button onClick={() => navigate("/scanner")} className="gap-2 rounded-full bg-secondary hover:bg-secondary/90 text-secondary-foreground">
+            <Button onClick={() => navigate("/kiosk-scanner")} className="gap-2 rounded-full bg-secondary hover:bg-secondary/90 text-secondary-foreground">
               <QrCode size={18} />
               <span className="hidden sm:inline">🚀 Launch Kiosk</span>
             </Button>
