@@ -40,9 +40,9 @@ export default function Menu() {
     refetch,
   } = useMenuItems();
 
-  const handleSignOut = async () => {
-    await logout();
-    navigate("/");
+  const handleSignOut = () => {
+    // Navigate to auth with logout param - Auth page handles the actual signout
+    navigate("/auth?logout=true");
   };
 
   const userName = user?.fullName || "Guest User";
