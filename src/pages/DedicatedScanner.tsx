@@ -432,6 +432,13 @@ export default function KioskScanner() {
     navigate('/auth');
   };
 
+  // Sanitize strings to prevent XSS when building HTML
+  const escapeHtml = (str: string): string => {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  };
+
   const printToThermalPrinter = (order: OrderDetails) => {
     const printFrame = document.createElement('iframe');
     printFrame.style.position = 'absolute';
@@ -442,9 +449,11 @@ export default function KioskScanner() {
     const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
     if (!frameDoc) return;
 
+    // Sanitize all user-controlled data to prevent XSS
+    const sanitizedOrderNumber = escapeHtml(order.orderNumber);
     const itemsHTML = order.items.map(item => `
       <div class="item-row">
-        <span>${item.name} x${item.quantity}</span>
+        <span>${escapeHtml(item.name)} x${item.quantity}</span>
         <span>₹${(item.price * item.quantity).toFixed(2)}</span>
       </div>
     `).join('');
@@ -484,7 +493,7 @@ export default function KioskScanner() {
         <div class="center" style="margin-top: 5px;">Order Verification Receipt</div>
         <div class="divider"></div>
         
-        <div class="center large bold">${order.orderNumber}</div>
+        <div class="center large bold">${sanitizedOrderNumber}</div>
         <div class="center" style="font-size: 10px; margin-top: 3px;">
           ${new Date(order.createdAt).toLocaleDateString()} ${new Date(order.createdAt).toLocaleTimeString()}
         </div>
