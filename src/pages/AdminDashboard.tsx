@@ -13,7 +13,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator";
 import { useAdminAuth } from "@/context/AdminAuthContext";
 import { useAuth } from "@/context/AuthContext";
-import { useCampus } from "@/context/CampusContext";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useAdminMenuItems,
@@ -68,34 +67,53 @@ const TIME_PERIODS = [
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { logout: pinLogout } = useAdminAuth();
-  const { logout: authLogout, user } = useAuth();
-  const { campus } = useCampus();
+  const { logout: authLogout } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
   const [profileData, setProfileData] = useState<{
     full_name: string | null;
     email: string | null;
     phone: string | null;
+    campus_name: string | null;
+    campus_code: string | null;
   } | null>(null);
 
-  // Fetch admin profile data
+  // Fetch admin profile + campus data directly from Supabase
   useEffect(() => {
     const fetchProfile = async () => {
-      if (!user?.id) return;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user?.id) return;
       
+      // Fetch profile with campus details in one query
       const { data } = await supabase
         .from('profiles')
-        .select('full_name, email, phone')
-        .eq('user_id', user.id)
+        .select(`
+          full_name,
+          email,
+          phone,
+          campus_id,
+          campuses:campus_id (
+            name,
+            code
+          )
+        `)
+        .eq('user_id', session.user.id)
         .maybeSingle();
       
       if (data) {
-        setProfileData(data);
+        const campusData = data.campuses as { name: string; code: string } | null;
+        setProfileData({
+          full_name: data.full_name,
+          email: data.email,
+          phone: data.phone,
+          campus_name: campusData?.name || null,
+          campus_code: campusData?.code || null,
+        });
       }
     };
     
     fetchProfile();
-  }, [user?.id]);
+  }, []);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -325,17 +343,17 @@ export default function AdminDashboard() {
             <Popover>
               <PopoverTrigger asChild>
                 <button className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm hover:opacity-90 transition-opacity">
-                  {getInitials(profileData?.full_name || user?.fullName)}
+                  {getInitials(profileData?.full_name)}
                 </button>
               </PopoverTrigger>
               <PopoverContent align="end" className="w-72 p-0">
                 <div className="p-4">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg">
-                      {getInitials(profileData?.full_name || user?.fullName)}
+                      {getInitials(profileData?.full_name)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-semibold truncate">{profileData?.full_name || user?.fullName || 'Admin'}</p>
+                      <p className="font-semibold truncate">{profileData?.full_name || 'Admin'}</p>
                       <p className="text-xs text-muted-foreground">Administrator</p>
                     </div>
                   </div>
@@ -345,7 +363,7 @@ export default function AdminDashboard() {
                   <div className="space-y-3">
                     <div className="flex items-center gap-3 text-sm">
                       <Mail size={16} className="text-muted-foreground shrink-0" />
-                      <span className="truncate">{profileData?.email || user?.email || 'N/A'}</span>
+                      <span className="truncate">{profileData?.email || 'N/A'}</span>
                     </div>
                     
                     <div className="flex items-center gap-3 text-sm">
@@ -355,7 +373,7 @@ export default function AdminDashboard() {
                     
                     <div className="flex items-center gap-3 text-sm">
                       <Building2 size={16} className="text-muted-foreground shrink-0" />
-                      <span className="truncate">{campus?.name || 'N/A'} ({campus?.code || 'N/A'})</span>
+                      <span className="truncate">{profileData?.campus_name || 'N/A'} ({profileData?.campus_code || 'N/A'})</span>
                     </div>
                   </div>
                 </div>
