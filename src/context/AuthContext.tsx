@@ -68,6 +68,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [fetchUserRole]
   );
 
+  // Validate session - checks if user still exists in Supabase Auth
+  const validateSession = useCallback(async () => {
+    if (!session) return;
+    
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      
+      // If user doesn't exist anymore, force logout
+      if (error || !data.user) {
+        console.log("User session invalid, logging out...");
+        await supabase.auth.signOut();
+        setSession(null);
+        setUser(null);
+      }
+    } catch {
+      // On error, force logout for security
+      await supabase.auth.signOut();
+      setSession(null);
+      setUser(null);
+    }
+  }, [session]);
+
   // Initialize + listen for auth changes
   useEffect(() => {
     let mounted = true;
@@ -96,6 +118,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       subscription.unsubscribe();
     };
   }, [setFromSession]);
+
+  // Periodically validate session (every 30 seconds)
+  useEffect(() => {
+    if (!session) return;
+
+    // Validate immediately on mount/session change
+    validateSession();
+
+    // Then validate periodically
+    const interval = setInterval(validateSession, 30000);
+
+    return () => clearInterval(interval);
+  }, [session, validateSession]);
 
   const login = useCallback(
     async (email: string, password: string) => {
