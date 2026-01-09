@@ -20,7 +20,7 @@ import { useMenuItems } from "@/hooks/useMenuItems";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, User, UtensilsCrossed, Heart } from "lucide-react";
+import { LogOut, User, UtensilsCrossed, Heart, LayoutDashboard } from "lucide-react";
 
 export default function Menu() {
   const navigate = useNavigate();
@@ -65,6 +65,19 @@ export default function Menu() {
             <Logo size="sm" />
 
             <div className="flex items-center gap-2">
+              {/* Admin Dashboard Button - only for admins */}
+              {user?.role === 'admin' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full gap-2"
+                  onClick={() => navigate("/admin")}
+                >
+                  <LayoutDashboard size={16} />
+                  <span className="hidden sm:inline">Admin</span>
+                </Button>
+              )}
+
               {/* Theme Toggle */}
               <ThemeToggle />
 
