@@ -143,25 +143,36 @@ export default function MyOrders() {
                 </div>
               </div>
 
-              {/* QR Code Section */}
-              <div className="bg-muted/50 p-4 border-t border-border">
-                <p className="text-xs text-center text-muted-foreground mb-3">
-                  Show this QR code at the counter for pickup
-                </p>
-                <div className="flex justify-center">
-                  <div className="bg-white p-3 rounded-xl shadow-sm">
-                    <QRCodeSVG 
-                      value={order.qrCode}
-                      size={140}
-                      level="M"
-                      includeMargin={false}
-                    />
+              {/* QR Code Section - Only show for paid orders */}
+              {order.paymentStatus === 'completed' || order.paymentStatus === 'paid' ? (
+                <div className="bg-muted/50 p-4 border-t border-border">
+                  <p className="text-xs text-center text-muted-foreground mb-3">
+                    Show this QR code at the counter for pickup
+                  </p>
+                  <div className="flex justify-center">
+                    <div className="bg-white p-3 rounded-xl shadow-sm">
+                      <QRCodeSVG 
+                        value={order.qrCode}
+                        size={140}
+                        level="M"
+                        includeMargin={false}
+                      />
+                    </div>
                   </div>
+                  <p className="text-xs text-center text-muted-foreground mt-3 font-mono">
+                    {order.qrCode || order.id}
+                  </p>
                 </div>
-                <p className="text-xs text-center text-muted-foreground mt-3 font-mono">
-                  {order.qrCode || order.id}
-                </p>
-              </div>
+              ) : (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 border-t border-yellow-200 dark:border-yellow-800">
+                  <p className="text-sm text-center text-yellow-700 dark:text-yellow-400 font-medium">
+                    ⏳ Awaiting Payment Confirmation
+                  </p>
+                  <p className="text-xs text-center text-yellow-600 dark:text-yellow-500 mt-1">
+                    QR code will appear after payment is verified
+                  </p>
+                </div>
+              )}
             </div>
           );
         })}
