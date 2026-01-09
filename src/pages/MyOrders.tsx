@@ -108,7 +108,7 @@ export default function MyOrders() {
               <div className="p-4 pb-3">
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <p className="font-bold text-base">{order.id}</p>
+                    <p className="font-bold text-base">{order.qrCode || order.id}</p>
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                       <Clock size={12} />
                       Placed at {formatTime(order.createdAt)}
@@ -157,7 +157,7 @@ export default function MyOrders() {
                   </div>
                 </div>
                 <p className="text-xs text-center text-muted-foreground mt-3 font-mono">
-                  {order.id}
+                  {order.qrCode || order.id}
                 </p>
               </div>
             </div>
