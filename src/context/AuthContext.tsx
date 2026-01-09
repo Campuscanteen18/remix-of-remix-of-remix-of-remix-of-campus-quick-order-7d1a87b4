@@ -1,8 +1,11 @@
-import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { User, UserRole } from '@/types/canteen';
+import { createContext, useContext, useEffect, useMemo, useState, ReactNode, useCallback } from "react";
+import type { Session } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
+import { User, UserRole } from "@/types/canteen";
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   isAdmin: boolean;
@@ -12,123 +15,130 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
   changePassword: (currentPassword: string, newPassword: string) => Promise<{ success: boolean; error?: string }>;
-  requestPasswordReset: (email: string) => Promise<{ success: boolean }>;
+  requestPasswordReset: (email: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Simulated delay to mimic real API calls
-const simulateApiDelay = (ms: number = 800) => new Promise(resolve => setTimeout(resolve, ms));
+const mapRole = (role: unknown): UserRole => {
+  if (role === "admin" || role === "kiosk" || role === "student") return role;
+  return "student";
+};
 
-// Determine role from email
-const getRoleFromEmail = (email: string): UserRole => {
-  const lowerEmail = email.toLowerCase();
-  
-  if (lowerEmail.includes('admin') || lowerEmail.includes('owner')) {
-    return 'admin';
-  }
-  
-  if (lowerEmail.includes('kiosk') || lowerEmail.includes('counter')) {
-    return 'kiosk';
-  }
-  
-  return 'student';
+const getFullName = (sessionEmail: string | undefined, fullNameMeta: unknown) => {
+  const metaName = typeof fullNameMeta === "string" ? fullNameMeta.trim() : "";
+  if (metaName) return metaName;
+  return (sessionEmail ?? "User").split("@")[0].replace(/[._]/g, " ");
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check for existing session on mount
-  useEffect(() => {
-    const checkSession = async () => {
-      await simulateApiDelay(500);
-      
-      const savedUser = localStorage.getItem('canteen_user');
-      
-      if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser);
-          setUser(parsedUser);
-        } catch {
-          localStorage.removeItem('canteen_user');
-        }
-      }
-      
-      setIsLoading(false);
-    };
+  const fetchUserRole = useCallback(async (userId: string): Promise<UserRole> => {
+    const { data, error } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-    checkSession();
+    if (error) return "student";
+    return mapRole(data?.role);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    setIsLoading(true);
-    
-    try {
-      await simulateApiDelay();
-      
-      // Simulate validation
-      if (!email.includes('@')) {
-        return { success: false, error: 'Invalid email format' };
-      }
-      
-      if (password.length < 6) {
-        return { success: false, error: 'Password must be at least 6 characters' };
+  const setFromSession = useCallback(
+    async (nextSession: Session | null) => {
+      setSession(nextSession);
+
+      if (!nextSession?.user) {
+        setUser(null);
+        return;
       }
 
-      const role = getRoleFromEmail(email);
-
-      const mockUser: User = {
-        id: `user_${Date.now()}`,
-        email,
-        fullName: email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+      const role = await fetchUserRole(nextSession.user.id);
+      setUser({
+        id: nextSession.user.id,
+        email: nextSession.user.email ?? "",
+        fullName: getFullName(nextSession.user.email, nextSession.user.user_metadata?.full_name),
+        phone: typeof nextSession.user.phone === "string" && nextSession.user.phone ? nextSession.user.phone : undefined,
         role,
-      };
+      });
+    },
+    [fetchUserRole]
+  );
 
-      setUser(mockUser);
-      localStorage.setItem('canteen_user', JSON.stringify(mockUser));
-      
-      return { success: true, role };
-    } catch (error) {
-      return { success: false, error: 'An unexpected error occurred' };
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  // Initialize + listen for auth changes
+  useEffect(() => {
+    let mounted = true;
+
+    // Listener FIRST
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!mounted) return;
+
+      // Only sync state here; defer any Supabase reads to avoid deadlocks
+      setSession(nextSession);
+
+      setTimeout(() => {
+        if (!mounted) return;
+        setFromSession(nextSession).finally(() => setIsLoading(false));
+      }, 0);
+    });
+
+    // THEN get current session
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setFromSession(data.session).finally(() => setIsLoading(false));
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, [setFromSession]);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+
+        if (error) return { success: false, error: error.message };
+
+        const role = data.user ? await fetchUserRole(data.user.id) : undefined;
+        // navigation is handled elsewhere via onAuthStateChange
+        return { success: true, role };
+      } catch {
+        return { success: false, error: "An unexpected error occurred" };
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [fetchUserRole]
+  );
 
   const signup = useCallback(async (email: string, password: string, fullName: string) => {
     setIsLoading(true);
-    
     try {
-      await simulateApiDelay();
-      
-      // Simulate validation
-      if (!email.includes('@')) {
-        return { success: false, error: 'Invalid email format' };
-      }
-      
-      if (password.length < 6) {
-        return { success: false, error: 'Password must be at least 6 characters' };
-      }
+      const redirectUrl = `${window.location.origin}/`;
+      const { error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: redirectUrl,
+          data: {
+            full_name: fullName.trim(),
+          },
+        },
+      });
 
-      if (fullName.length < 2) {
-        return { success: false, error: 'Name must be at least 2 characters' };
-      }
-
-      // New signups are always students
-      const mockUser: User = {
-        id: `user_${Date.now()}`,
-        email,
-        fullName,
-        role: 'student',
-      };
-
-      setUser(mockUser);
-      localStorage.setItem('canteen_user', JSON.stringify(mockUser));
-      
+      if (error) return { success: false, error: error.message };
       return { success: true };
-    } catch (error) {
-      return { success: false, error: 'An unexpected error occurred' };
+    } catch {
+      return { success: false, error: "An unexpected error occurred" };
     } finally {
       setIsLoading(false);
     }
@@ -136,56 +146,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     setIsLoading(true);
-    
     try {
-      await simulateApiDelay(300);
-      
+      await supabase.auth.signOut();
+      setSession(null);
       setUser(null);
-      localStorage.removeItem('canteen_user');
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   const updateUser = useCallback((updates: Partial<User>) => {
-    setUser(prev => {
-      if (!prev) return null;
-      const updated = { ...prev, ...updates };
-      localStorage.setItem('canteen_user', JSON.stringify(updated));
-      return updated;
+    // Local UI-only updates (Profile page). Do NOT persist roles client-side.
+    setUser((prev) => {
+      if (!prev) return prev;
+      const next: User = { ...prev, ...updates, role: prev.role };
+      return next;
     });
   }, []);
 
-  const changePassword = useCallback(async (currentPassword: string, newPassword: string) => {
-    await simulateApiDelay(500);
-    
-    // Mock validation
-    if (currentPassword.length < 6) {
-      return { success: false, error: 'Current password is incorrect' };
+  const changePassword = useCallback(async (_currentPassword: string, newPassword: string) => {
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch {
+      return { success: false, error: "An unexpected error occurred" };
     }
-    
-    if (newPassword.length < 6) {
-      return { success: false, error: 'New password must be at least 6 characters' };
-    }
-    
-    // Mock success
-    return { success: true };
   }, []);
 
   const requestPasswordReset = useCallback(async (email: string) => {
-    await simulateApiDelay(500);
-    // Always return success (mock)
-    return { success: true };
+    try {
+      const redirectTo = `${window.location.origin}/auth`;
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
+      if (error) return { success: false, error: error.message };
+      return { success: true };
+    } catch {
+      return { success: false, error: "An unexpected error occurred" };
+    }
   }, []);
 
-  const isAdmin = user?.role === 'admin';
-  const isKiosk = user?.role === 'kiosk';
+  const isAuthenticated = !!user;
+  const isAdmin = user?.role === "admin";
+  const isKiosk = user?.role === "kiosk";
 
-  return (
-    <AuthContext.Provider value={{
+  const value = useMemo<AuthContextType>(
+    () => ({
       user,
+      session,
       isLoading,
-      isAuthenticated: !!user,
+      isAuthenticated,
       isAdmin,
       isKiosk,
       login,
@@ -194,16 +203,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       updateUser,
       changePassword,
       requestPasswordReset,
-    }}>
-      {children}
-    </AuthContext.Provider>
+    }),
+    [user, session, isLoading, isAuthenticated, isAdmin, isKiosk, login, signup, logout, updateUser, changePassword, requestPasswordReset]
   );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {
   const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
   return context;
 }

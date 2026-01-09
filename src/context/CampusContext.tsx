@@ -71,26 +71,60 @@ export function CampusProvider({ children }: { children: ReactNode }) {
     } as Campus;
   }, []);
 
+  const fetchCampusById = useCallback(async (id: string): Promise<Campus | null> => {
+    const { data, error: fetchError } = await supabase
+      .from('campuses')
+      .select('*')
+      .eq('id', id)
+      .eq('is_active', true)
+      .single();
+
+    if (fetchError || !data) return null;
+
+    const settings = {
+      ...defaultSettings,
+      ...(data.settings as unknown as Partial<CampusSettings>),
+    };
+
+    return {
+      ...data,
+      settings,
+    } as Campus;
+  }, []);
+
   // Initialize campus from localStorage on mount
   useEffect(() => {
     const initCampus = async () => {
       const savedCode = localStorage.getItem(CAMPUS_CODE_KEY);
-      
+
+      // 1) Preferred: restore campus by saved code
       if (savedCode) {
         const campusData = await fetchCampusByCode(savedCode);
         if (campusData) {
           setCampus(campusData);
-        } else {
-          // Invalid saved code, clear it
-          localStorage.removeItem(CAMPUS_CODE_KEY);
+          setIsLoading(false);
+          return;
+        }
+        // Invalid saved code, clear it
+        localStorage.removeItem(CAMPUS_CODE_KEY);
+      }
+
+      // 2) Fallback: if user is already logged in, infer campus from user metadata
+      const { data: { session } } = await supabase.auth.getSession();
+      const campusId = session?.user?.user_metadata?.campus_id;
+      if (typeof campusId === 'string' && campusId) {
+        const campusData = await fetchCampusById(campusId);
+        if (campusData) {
+          setCampus(campusData);
+          localStorage.setItem(CAMPUS_CODE_KEY, campusData.code);
         }
       }
-      
+
       setIsLoading(false);
     };
 
     initCampus();
-  }, [fetchCampusByCode]);
+  }, [fetchCampusByCode, fetchCampusById]);
 
   // Set campus by code (used by campus selector)
   const setCampusByCode = useCallback(async (code: string) => {
