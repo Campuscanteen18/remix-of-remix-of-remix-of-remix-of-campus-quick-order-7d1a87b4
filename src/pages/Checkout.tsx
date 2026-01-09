@@ -1,32 +1,24 @@
-import { ArrowLeft, Smartphone, Minus, Plus, Trash2, ShoppingBag, Loader2, AlertCircle, QrCode } from 'lucide-react';
+import { ArrowLeft, Minus, Plus, Trash2, ShoppingBag, Loader2, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 import { useCart } from '@/context/CartContext';
-import { useCampus } from '@/context/CampusContext';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { useStockCheck } from '@/hooks/useStockCheck';
 import { useOrders } from '@/hooks/useOrders';
 import { EmptyState } from '@/components/EmptyState';
-import { PaymentGatewayModal } from '@/components/PaymentGatewayModal';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function Checkout() {
   const navigate = useNavigate();
   const { cart, totalPrice, totalItems, clearCart, setCurrentOrder, updateQuantity, removeFromCart } = useCart();
-  const { settings } = useCampus();
   const [isCheckingStock, setIsCheckingStock] = useState(false);
-  const [showGatewayModal, setShowGatewayModal] = useState(false);
-  const [showUpiQr, setShowUpiQr] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
+  const [isInitiatingPhonePe, setIsInitiatingPhonePe] = useState(false);
   const { toast } = useToast();
   const { checkStock } = useStockCheck();
   const { createOrder, isCreating } = useOrders();
-
-  // Get payment settings from campus
-  const paymentSettings = settings?.payment;
-  const paymentProvider = paymentSettings?.provider || 'upi';
 
   // Empty cart - show empty state
   if (cart.length === 0) {
@@ -87,15 +79,8 @@ export default function Checkout() {
         return;
       }
       
-      // All items available - handle based on payment provider
-      if (paymentProvider === 'razorpay' && paymentSettings?.razorpay_key) {
-        handleRazorpayPayment();
-      } else if (paymentProvider === 'upi' && paymentSettings?.upi_id) {
-        setShowUpiQr(true);
-      } else {
-        // Open PhonePe/Paytm gateway modal
-        setShowGatewayModal(true);
-      }
+      // All items available - initiate PhonePe payment
+      await handlePhonePePayment();
     } catch (error) {
       toast({
         title: 'Error',
@@ -107,82 +92,69 @@ export default function Checkout() {
     }
   };
 
-  // Handle Razorpay payment
-  const handleRazorpayPayment = async () => {
-    if (!paymentSettings?.razorpay_key) {
-      toast({
-        title: 'Configuration Error',
-        description: 'Payment gateway not configured for this campus.',
-        variant: 'destructive',
+  // Handle PhonePe Sandbox payment
+  const handlePhonePePayment = async () => {
+    setIsInitiatingPhonePe(true);
+    
+    try {
+      // First create a pending order
+      const order = await createOrder({
+        items: [...cart],
+        total: totalPrice,
+        paymentMethod: 'PHONEPE',
       });
-      return;
-    }
 
-    // Load Razorpay script dynamically
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
+      if (!order) {
+        toast({
+          title: 'Error',
+          description: 'Could not create order. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-    script.onload = () => {
-      const options = {
-        key: paymentSettings.razorpay_key,
-        amount: totalPrice * 100, // Amount in paise
-        currency: settings?.operational?.currency || 'INR',
-        name: 'Campus Canteen',
-        description: `Order - ${totalItems} items`,
-        handler: async (response: { razorpay_payment_id: string }) => {
-          // Payment successful
-          await handlePaymentSuccess('RAZORPAY', response.razorpay_payment_id);
+      // Get current URL for redirect
+      const redirectUrl = `${window.location.origin}/order-success?orderId=${order.id}`;
+
+      // Call PhonePe payment edge function
+      const { data, error } = await supabase.functions.invoke('phonepe-payment', {
+        body: {
+          amount: totalPrice,
+          orderId: order.id,
+          redirectUrl,
         },
-        prefill: {},
-        theme: {
-          color: '#10b981',
-        },
-      };
+      });
 
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
-    };
-  };
+      if (error || !data?.success) {
+        console.error('PhonePe initiation error:', error || data?.error);
+        toast({
+          title: 'Payment Error',
+          description: data?.error || 'Could not initiate payment. Please try again.',
+          variant: 'destructive',
+        });
+        return;
+      }
 
-  // Handle UPI confirmation
-  const handleUpiConfirm = async () => {
-    setShowUpiQr(false);
-    await handlePaymentSuccess('UPI');
-  };
-
-  // Common payment success handler
-  const handlePaymentSuccess = async (provider: string, paymentId?: string) => {
-    toast({
-      title: 'Processing order...',
-      description: 'Please wait while we confirm your order.',
-    });
-
-    const order = await createOrder({
-      items: [...cart],
-      total: totalPrice,
-      paymentMethod: provider,
-    });
-
-    if (order) {
+      // Store order info for success page
       setCurrentOrder(order);
       clearCart();
-      navigate('/order-success');
-    } else {
+
+      // Redirect to PhonePe payment page
+      if (data.redirectUrl) {
+        window.location.href = data.redirectUrl;
+      }
+    } catch (error) {
+      console.error('PhonePe payment error:', error);
       toast({
-        title: 'Order Failed',
-        description: 'Could not process your order. Please try again.',
+        title: 'Error',
+        description: 'Payment initiation failed. Please try again.',
         variant: 'destructive',
       });
+    } finally {
+      setIsInitiatingPhonePe(false);
     }
   };
 
-  // Gateway payment success callback
-  const handleGatewaySuccess = async (gateway: string, transactionId: string) => {
-    console.log(`Payment successful via ${gateway}, TXN: ${transactionId}`);
-    await handlePaymentSuccess(gateway, transactionId);
-  };
 
   return (
     <div className="h-screen bg-background flex flex-col overflow-hidden">
@@ -290,16 +262,12 @@ export default function Checkout() {
                 <div className="w-5 h-5 rounded-full border-2 border-primary flex items-center justify-center">
                   <div className="w-2.5 h-2.5 rounded-full bg-primary" />
                 </div>
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10 text-primary">
-                  <Smartphone size={20} />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-[#5f259f]">
+                  <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/PhonePe_Logo.svg/1200px-PhonePe_Logo.svg.png" alt="PhonePe" className="h-6 w-auto object-contain" />
                 </div>
                 <div className="flex-1 text-left">
-                  <p className="font-semibold">UPI (PhonePe, Paytm, GPay, & more)</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/PhonePe_Logo.svg/1200px-PhonePe_Logo.svg.png" alt="PhonePe" className="h-4 w-auto object-contain" />
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Paytm_Logo_%28standalone%29.svg/1200px-Paytm_Logo_%28standalone%29.svg.png" alt="Paytm" className="h-4 w-auto object-contain" />
-                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/Google_Pay_Logo.svg/1200px-Google_Pay_Logo.svg.png" alt="GPay" className="h-4 w-auto object-contain" />
-                  </div>
+                  <p className="font-semibold">PhonePe (Sandbox)</p>
+                  <p className="text-xs text-muted-foreground">Automatic verification • Test mode</p>
                 </div>
               </div>
             </div>
@@ -319,14 +287,19 @@ export default function Checkout() {
             Cancel
           </Button>
           <Button 
-            className="flex-1 h-12 text-lg font-bold rounded-xl bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+            className="flex-1 h-12 text-lg font-bold rounded-xl bg-[#5f259f] hover:bg-[#4a1d7a] text-white"
             onClick={handleOpenGateway}
-            disabled={isCreating || isCheckingStock}
+            disabled={isCreating || isCheckingStock || isInitiatingPhonePe}
           >
             {isCheckingStock ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin mr-2" />
                 Checking Stock...
+              </>
+            ) : isInitiatingPhonePe ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                Connecting to PhonePe...
               </>
             ) : isCreating ? (
               <>
@@ -334,53 +307,14 @@ export default function Checkout() {
                 Processing...
               </>
             ) : (
-              `Pay ₹${totalPrice}`
+              <>
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/PhonePe_Logo.svg/1200px-PhonePe_Logo.svg.png" alt="" className="h-5 w-auto mr-2" />
+                Pay ₹{totalPrice}
+              </>
             )}
           </Button>
         </div>
       </div>
-
-      {/* UPI QR Code Modal */}
-      <Dialog open={showUpiQr} onOpenChange={setShowUpiQr}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl">Scan to Pay</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col items-center gap-4 py-4">
-            <div className="w-48 h-48 bg-muted rounded-xl flex items-center justify-center">
-              <QrCode size={120} className="text-muted-foreground" />
-            </div>
-            <p className="text-sm text-muted-foreground text-center">
-              Scan this QR code with any UPI app<br />
-              <span className="font-mono text-foreground">{paymentSettings?.upi_id}</span>
-            </p>
-            <p className="text-2xl font-bold text-primary">₹{totalPrice}</p>
-            <Button 
-              className="w-full h-12 font-bold rounded-xl"
-              onClick={handleUpiConfirm}
-              disabled={isCreating}
-            >
-              {isCreating ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                  Processing...
-                </>
-              ) : (
-                'I have paid'
-              )}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* PhonePe/Paytm Gateway Modal */}
-      <PaymentGatewayModal
-        open={showGatewayModal}
-        onOpenChange={setShowGatewayModal}
-        amount={totalPrice}
-        onSuccess={handleGatewaySuccess}
-        onCancel={() => setShowGatewayModal(false)}
-      />
     </div>
   );
 }
