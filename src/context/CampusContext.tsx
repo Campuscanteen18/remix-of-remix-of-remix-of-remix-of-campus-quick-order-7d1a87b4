@@ -46,49 +46,123 @@ export function CampusProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch campus by code
+  // Fetch campus by code - uses public view for initial lookup (no sensitive settings exposed)
+  // Then fetches full data if user is authenticated
   const fetchCampusByCode = useCallback(async (code: string): Promise<Campus | null> => {
-    const { data, error: fetchError } = await supabase
-      .from('campuses')
+    // First, check if campus exists using the public view (no auth required)
+    const { data: publicData, error: publicError } = await supabase
+      .from('campus_public_info')
       .select('*')
       .eq('code', code.toUpperCase())
-      .eq('is_active', true)
       .single();
 
-    if (fetchError || !data) {
+    if (publicError || !publicData) {
       return null;
     }
 
-    // Parse settings with fallback
-    const settings = {
+    // Try to get full campus data if user is authenticated
+    const { data: fullData } = await supabase
+      .from('campuses')
+      .select('*')
+      .eq('id', publicData.id)
+      .single();
+
+    // If we got full data (authenticated user at their campus), use it
+    if (fullData) {
+      const settings = {
+        ...defaultSettings,
+        ...(fullData.settings as unknown as Partial<CampusSettings>),
+      };
+      return {
+        ...fullData,
+        settings,
+      } as Campus;
+    }
+
+    // Otherwise, construct from public data with default settings
+    // Merge public branding/operational settings into defaults
+    const publicBranding = publicData.branding as Partial<CampusSettings['branding']> | null;
+    const publicOperational = publicData.public_operational_settings as Partial<CampusSettings['operational']> | null;
+
+    const settings: CampusSettings = {
       ...defaultSettings,
-      ...(data.settings as unknown as Partial<CampusSettings>),
+      branding: {
+        ...defaultSettings.branding,
+        ...(publicBranding || {}),
+      },
+      operational: {
+        ...defaultSettings.operational,
+        ...(publicOperational || {}),
+      },
     };
 
     return {
-      ...data,
+      id: publicData.id,
+      name: publicData.name,
+      code: publicData.code,
+      logo_url: publicData.logo_url,
+      address: publicData.address,
+      is_active: publicData.is_active,
       settings,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     } as Campus;
   }, []);
 
   const fetchCampusById = useCallback(async (id: string): Promise<Campus | null> => {
-    const { data, error: fetchError } = await supabase
+    // Try full campuses table first (for authenticated users at their campus)
+    const { data: fullData } = await supabase
       .from('campuses')
       .select('*')
       .eq('id', id)
       .eq('is_active', true)
       .single();
 
-    if (fetchError || !data) return null;
+    if (fullData) {
+      const settings = {
+        ...defaultSettings,
+        ...(fullData.settings as unknown as Partial<CampusSettings>),
+      };
+      return {
+        ...fullData,
+        settings,
+      } as Campus;
+    }
 
-    const settings = {
+    // Fall back to public view if not authorized for full data
+    const { data: publicData, error: publicError } = await supabase
+      .from('campus_public_info')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (publicError || !publicData) return null;
+
+    const publicBranding = publicData.branding as Partial<CampusSettings['branding']> | null;
+    const publicOperational = publicData.public_operational_settings as Partial<CampusSettings['operational']> | null;
+
+    const settings: CampusSettings = {
       ...defaultSettings,
-      ...(data.settings as unknown as Partial<CampusSettings>),
+      branding: {
+        ...defaultSettings.branding,
+        ...(publicBranding || {}),
+      },
+      operational: {
+        ...defaultSettings.operational,
+        ...(publicOperational || {}),
+      },
     };
 
     return {
-      ...data,
+      id: publicData.id,
+      name: publicData.name,
+      code: publicData.code,
+      logo_url: publicData.logo_url,
+      address: publicData.address,
+      is_active: publicData.is_active,
       settings,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     } as Campus;
   }, []);
 
