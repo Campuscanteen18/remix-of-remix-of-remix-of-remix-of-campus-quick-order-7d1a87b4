@@ -41,7 +41,7 @@ export default function Menu() {
   } = useMenuItems();
 
   const handleSignOut = () => {
-    // Navigate to auth with logout param - Auth page handles the actual signout
+    // Force a clean sign-out even if a session is still cached briefly
     navigate("/auth?logout=true");
   };
 

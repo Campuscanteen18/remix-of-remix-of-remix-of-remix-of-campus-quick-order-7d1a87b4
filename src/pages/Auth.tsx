@@ -34,14 +34,27 @@ export default function Auth() {
   // Handle logout parameter - logout first before showing auth page
   useEffect(() => {
     const shouldLogout = searchParams.get('logout') === 'true';
-    if (shouldLogout) {
+    if (!shouldLogout) return;
+
+    let cancelled = false;
+
+    (async () => {
       setIsLoggingOut(true);
-      supabase.auth.signOut().then(() => {
-        setIsLoggingOut(false);
-        // Remove the logout param from URL
+      await supabase.auth.signOut();
+
+      // Ensure session is actually cleared before continuing
+      const { data: { session } } = await supabase.auth.getSession();
+      if (cancelled) return;
+
+      setIsLoggingOut(false);
+      if (!session) {
         navigate('/auth', { replace: true });
-      });
-    }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [searchParams, navigate]);
 
   // Check for existing session on mount (only if not logging out)
