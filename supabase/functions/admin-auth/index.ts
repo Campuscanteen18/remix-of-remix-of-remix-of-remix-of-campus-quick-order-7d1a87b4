@@ -155,9 +155,10 @@ serve(async (req) => {
       }
 
       case 'create-pin': {
-        if (!pin || pin.length < 4 || pin.length > 8) {
+        // Validate PIN: must be 4-8 digits only
+        if (!pin || typeof pin !== 'string' || pin.length < 4 || pin.length > 8 || !/^\d+$/.test(pin)) {
           return new Response(
-            JSON.stringify({ error: 'PIN must be 4-8 digits' }),
+            JSON.stringify({ error: 'PIN must be 4-8 digits (numbers only)' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }
@@ -217,9 +218,10 @@ serve(async (req) => {
           );
         }
 
-        if (!pin) {
+        // Validate PIN format
+        if (!pin || typeof pin !== 'string' || !/^\d{4,8}$/.test(pin)) {
           return new Response(
-            JSON.stringify({ error: 'PIN required' }),
+            JSON.stringify({ error: 'PIN must be 4-8 digits (numbers only)' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           );
         }

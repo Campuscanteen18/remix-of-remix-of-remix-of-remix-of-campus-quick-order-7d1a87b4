@@ -1,6 +1,37 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCampus } from '@/context/CampusContext';
+import { z } from 'zod';
+
+// Validation schemas
+const menuItemCreateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200, 'Name too long').trim(),
+  price: z.number().positive('Price must be positive').max(999999, 'Price too high'),
+  quantity: z.number().int().nonnegative().max(9999).optional(),
+  category: z.string().max(100).optional(),
+  image: z.string().url().max(2048).optional().or(z.literal('')),
+  is_veg: z.boolean().optional(),
+  is_popular: z.boolean().optional(),
+  is_available: z.boolean().optional(),
+  available_time_periods: z.array(z.enum(['breakfast', 'lunch', 'snacks', 'dinner'])).optional(),
+  description: z.string().max(1000).optional(),
+});
+
+const menuItemUpdateSchema = z.object({
+  id: z.string().uuid('Invalid item ID'),
+  name: z.string().min(1).max(200).trim().optional(),
+  price: z.number().positive().max(999999).optional(),
+  quantity: z.number().int().nonnegative().max(9999).optional(),
+  category: z.string().max(100).optional(),
+  image: z.string().url().max(2048).optional().or(z.literal('')),
+  is_veg: z.boolean().optional(),
+  is_popular: z.boolean().optional(),
+  is_available: z.boolean().optional(),
+  available_time_periods: z.array(z.enum(['breakfast', 'lunch', 'snacks', 'dinner'])).optional(),
+  description: z.string().max(1000).optional(),
+});
+
+const orderStatusSchema = z.enum(['pending', 'confirmed', 'preparing', 'ready', 'collected', 'cancelled']);
 
 // Types matching Supabase schema
 interface MenuItem {
@@ -111,20 +142,28 @@ export function useCreateMenuItem() {
     }) => {
       if (!campus?.id) throw new Error('No campus selected');
 
+      // Validate input
+      const validationResult = menuItemCreateSchema.safeParse(item);
+      if (!validationResult.success) {
+        throw new Error(validationResult.error.errors[0]?.message || 'Invalid menu item data');
+      }
+
+      const validatedItem = validationResult.data;
+
       const { data, error } = await supabase
         .from('menu_items')
         .insert([{
           campus_id: campus.id,
-          name: item.name,
-          price: item.price,
-          stock_quantity: item.quantity || 0,
+          name: validatedItem.name,
+          price: validatedItem.price,
+          stock_quantity: validatedItem.quantity || 0,
           category_id: null,
-          image_url: item.image || null,
-          is_veg: item.is_veg ?? true,
-          is_popular: item.is_popular ?? false,
-          is_available: item.is_available ?? true,
-          available_time_periods: (item.available_time_periods || []) as ('breakfast' | 'lunch' | 'snacks' | 'dinner')[],
-          description: item.description || null,
+          image_url: validatedItem.image || null,
+          is_veg: validatedItem.is_veg ?? true,
+          is_popular: validatedItem.is_popular ?? false,
+          is_available: validatedItem.is_available ?? true,
+          available_time_periods: (validatedItem.available_time_periods || []) as ('breakfast' | 'lunch' | 'snacks' | 'dinner')[],
+          description: validatedItem.description || null,
         }])
         .select()
         .single();
@@ -157,7 +196,13 @@ export function useUpdateMenuItem() {
       available_time_periods?: string[];
       description?: string;
     }) => {
-      const { id, quantity, image, category, ...rest } = update;
+      // Validate input
+      const validationResult = menuItemUpdateSchema.safeParse(update);
+      if (!validationResult.success) {
+        throw new Error(validationResult.error.errors[0]?.message || 'Invalid update data');
+      }
+
+      const { id, quantity, image, category, ...rest } = validationResult.data;
 
       const updateData: Record<string, unknown> = { ...rest };
       
@@ -256,9 +301,21 @@ export function useUpdateOrderStatus() {
 
   return useMutation({
     mutationFn: async ({ id, status }: { id: string; status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled' }) => {
+      // Validate status
+      const statusResult = orderStatusSchema.safeParse(status);
+      if (!statusResult.success) {
+        throw new Error('Invalid order status');
+      }
+
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(id)) {
+        throw new Error('Invalid order ID');
+      }
+
       const { data, error } = await supabase
         .from('orders')
-        .update({ status })
+        .update({ status: statusResult.data })
         .eq('id', id)
         .select()
         .single();
