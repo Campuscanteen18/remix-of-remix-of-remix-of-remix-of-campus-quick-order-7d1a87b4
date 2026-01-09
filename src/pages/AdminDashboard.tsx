@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
@@ -9,8 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Separator } from "@/components/ui/separator";
 import { useAdminAuth } from "@/context/AdminAuthContext";
 import { useAuth } from "@/context/AuthContext";
+import { useCampus } from "@/context/CampusContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   useAdminMenuItems,
   useCreateMenuItem,
@@ -25,7 +29,6 @@ import { toast } from "sonner";
 import {
   LogOut,
   QrCode,
-  ArrowLeft,
   LayoutDashboard,
   UtensilsCrossed,
   TrendingUp,
@@ -40,6 +43,10 @@ import {
   Upload,
   ImageIcon,
   X,
+  User,
+  Mail,
+  Phone,
+  Building2,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
@@ -61,9 +68,34 @@ const TIME_PERIODS = [
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { logout: pinLogout } = useAdminAuth();
-  const { logout: authLogout } = useAuth();
+  const { logout: authLogout, user } = useAuth();
+  const { campus } = useCampus();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [profileData, setProfileData] = useState<{
+    full_name: string | null;
+    email: string | null;
+    phone: string | null;
+  } | null>(null);
+
+  // Fetch admin profile data
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (!user?.id) return;
+      
+      const { data } = await supabase
+        .from('profiles')
+        .select('full_name, email, phone')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      
+      if (data) {
+        setProfileData(data);
+      }
+    };
+    
+    fetchProfile();
+  }, [user?.id]);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -90,6 +122,11 @@ export default function AdminDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+  const getInitials = (name: string | null | undefined) => {
+    if (!name) return 'AD';
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
 
   const handleSignOut = async () => {
     // Clear admin PIN session + Supabase session
@@ -283,9 +320,60 @@ export default function AdminDashboard() {
               <QrCode size={18} />
               <span className="hidden sm:inline">🚀 Launch Kiosk</span>
             </Button>
-            <Button variant="ghost" size="icon" onClick={handleSignOut} className="rounded-full">
-              <LogOut size={18} />
-            </Button>
+            
+            {/* Profile Popover */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm hover:opacity-90 transition-opacity">
+                  {getInitials(profileData?.full_name || user?.fullName)}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-72 p-0">
+                <div className="p-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-lg">
+                      {getInitials(profileData?.full_name || user?.fullName)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold truncate">{profileData?.full_name || user?.fullName || 'Admin'}</p>
+                      <p className="text-xs text-muted-foreground">Administrator</p>
+                    </div>
+                  </div>
+                  
+                  <Separator className="mb-3" />
+                  
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 text-sm">
+                      <Mail size={16} className="text-muted-foreground shrink-0" />
+                      <span className="truncate">{profileData?.email || user?.email || 'N/A'}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 text-sm">
+                      <Phone size={16} className="text-muted-foreground shrink-0" />
+                      <span>{profileData?.phone || 'Not set'}</span>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 text-sm">
+                      <Building2 size={16} className="text-muted-foreground shrink-0" />
+                      <span className="truncate">{campus?.name || 'N/A'} ({campus?.code || 'N/A'})</span>
+                    </div>
+                  </div>
+                </div>
+                
+                <Separator />
+                
+                <div className="p-2">
+                  <Button 
+                    variant="ghost" 
+                    className="w-full justify-start gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={handleSignOut}
+                  >
+                    <LogOut size={16} />
+                    Sign Out
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
           </div>
         </div>
       </header>
