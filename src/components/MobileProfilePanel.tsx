@@ -17,6 +17,7 @@ interface Order {
   created_at: string;
   total: number;
   status: string;
+  payment_status: string | null;
   items: string[];
 }
 
@@ -50,6 +51,38 @@ export function MobileProfilePanel({
     }
   }, [isOpen, authUser?.id]);
 
+  // Real-time subscription for order updates
+  useEffect(() => {
+    if (!authUser?.id) return;
+
+    const channel = supabase
+      .channel('order-status-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: `user_id=eq.${authUser.id}`
+        },
+        (payload) => {
+          // Update the order in state when status changes
+          setOrders(prevOrders => 
+            prevOrders.map(order => 
+              order.id === payload.new.id 
+                ? { ...order, status: payload.new.status }
+                : order
+            )
+          );
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [authUser?.id]);
+
   const fetchOrders = async () => {
     if (!authUser?.id) return;
     
@@ -58,7 +91,7 @@ export function MobileProfilePanel({
       // Fetch orders with their items
       const { data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select('id, order_number, created_at, total, status')
+        .select('id, order_number, created_at, total, status, payment_status')
         .eq('user_id', authUser.id)
         .order('created_at', { ascending: false })
         .limit(5);
@@ -85,6 +118,29 @@ export function MobileProfilePanel({
       console.error('Error fetching orders:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Get display status based on order and payment status
+  const getStatusDisplay = (order: Order) => {
+    if (order.status === 'pending' && order.payment_status === 'paid') {
+      return { label: 'Verifying...', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
+    }
+    
+    switch (order.status) {
+      case 'confirmed':
+        return { label: 'Confirmed', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' };
+      case 'preparing':
+        return { label: 'Preparing', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
+      case 'ready':
+        return { label: 'Ready', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' };
+      case 'delivered':
+        return { label: 'Delivered', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' };
+      case 'cancelled':
+        return { label: 'Cancelled', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' };
+      case 'pending':
+      default:
+        return { label: 'Pending', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' };
     }
   };
 
@@ -181,35 +237,30 @@ export function MobileProfilePanel({
                 </div>
               ) : orders.length > 0 ? (
                 <div className="space-y-3">
-                  {orders.slice(0, 2).map((order) => (
-                    <div 
-                      key={order.id} 
-                      className="bg-muted/50 rounded-xl p-3 border border-border"
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-medium text-muted-foreground">{order.order_number}</span>
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
-                          order.status === 'delivered' 
-                            ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                            : order.status === 'pending'
-                            ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400'
-                            : order.status === 'preparing'
-                            ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                            : 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
-                        }`}>
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </span>
-                      </div>
-                      <p className="font-medium text-sm">{order.items.join(', ') || 'No items'}</p>
-                      <div className="flex items-center justify-between mt-2">
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          <Clock size={12} />
-                          <span>{new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                  {orders.slice(0, 2).map((order) => {
+                    const statusDisplay = getStatusDisplay(order);
+                    return (
+                      <div 
+                        key={order.id} 
+                        className="bg-muted/50 rounded-xl p-3 border border-border"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium text-muted-foreground">{order.order_number}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full transition-all duration-300 ${statusDisplay.color}`}>
+                            {statusDisplay.label}
+                          </span>
                         </div>
-                        <span className="font-bold text-primary">₹{order.total}</span>
+                        <p className="font-medium text-sm">{order.items.join(', ') || 'No items'}</p>
+                        <div className="flex items-center justify-between mt-2">
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock size={12} />
+                            <span>{new Date(order.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</span>
+                          </div>
+                          <span className="font-bold text-primary">₹{order.total}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   
                   <Button 
                     variant="outline" 
