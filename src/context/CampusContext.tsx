@@ -54,9 +54,10 @@ export function CampusProvider({ children }: { children: ReactNode }) {
       .from('campus_public_info')
       .select('*')
       .eq('code', code.toUpperCase())
-      .single();
+      .maybeSingle();
 
     if (publicError || !publicData) {
+      console.log('Campus lookup failed:', publicError?.message || 'Not found');
       return null;
     }
 
