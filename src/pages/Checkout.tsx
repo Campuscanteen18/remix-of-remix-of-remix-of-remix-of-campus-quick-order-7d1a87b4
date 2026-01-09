@@ -1,4 +1,4 @@
-import { ArrowLeft, Smartphone, Minus, Plus, Trash2, ShoppingBag, Wallet, Loader2, AlertCircle, CreditCard, QrCode } from 'lucide-react';
+import { ArrowLeft, Smartphone, Minus, Plus, Trash2, ShoppingBag, Loader2, AlertCircle, QrCode } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Logo } from '@/components/Logo';
 import { useCart } from '@/context/CartContext';
@@ -10,6 +10,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useStockCheck } from '@/hooks/useStockCheck';
 import { useOrders } from '@/hooks/useOrders';
 import { EmptyState } from '@/components/EmptyState';
+import { PaymentGatewayModal } from '@/components/PaymentGatewayModal';
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -92,7 +93,7 @@ export default function Checkout() {
       } else if (paymentProvider === 'upi' && paymentSettings?.upi_id) {
         setShowUpiQr(true);
       } else {
-        // Fallback to gateway modal for UPI apps
+        // Open PhonePe/Paytm gateway modal
         setShowGatewayModal(true);
       }
     } catch (error) {
@@ -177,16 +178,10 @@ export default function Checkout() {
     }
   };
 
-  // Legacy UPI app selection handler
-  const handlePayment = async (provider: string) => {
-    setShowGatewayModal(false);
-    
-    toast({
-      title: `Redirecting to ${provider}...`,
-      description: "Please complete payment in your app.",
-    });
-    
-    await handlePaymentSuccess(provider);
+  // Gateway payment success callback
+  const handleGatewaySuccess = async (gateway: string, transactionId: string) => {
+    console.log(`Payment successful via ${gateway}, TXN: ${transactionId}`);
+    await handlePaymentSuccess(gateway, transactionId);
   };
 
   return (
@@ -378,37 +373,14 @@ export default function Checkout() {
         </DialogContent>
       </Dialog>
 
-      {/* Gateway Selection Modal (Fallback) */}
-      <Dialog open={showGatewayModal} onOpenChange={setShowGatewayModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl">Choose Payment App</DialogTitle>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 py-4">
-            <button
-              onClick={() => handlePayment('PHONEPE')}
-              disabled={isCreating}
-              className="flex items-center gap-4 p-5 rounded-xl border-2 border-[#5f259f] bg-white hover:bg-[#5f259f]/5 transition-colors disabled:opacity-50"
-            >
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#5f259f]/10">
-                <Smartphone size={24} className="text-[#5f259f]" />
-              </div>
-              <span className="text-lg font-bold text-[#5f259f]">PhonePe</span>
-            </button>
-            
-            <button
-              onClick={() => handlePayment('PAYTM')}
-              disabled={isCreating}
-              className="flex items-center gap-4 p-5 rounded-xl border-2 border-[#00baf2] bg-white hover:bg-[#00baf2]/5 transition-colors disabled:opacity-50"
-            >
-              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-[#00baf2]/10">
-                <Wallet size={24} className="text-[#00baf2]" />
-              </div>
-              <span className="text-lg font-bold text-[#00baf2]">Paytm</span>
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* PhonePe/Paytm Gateway Modal */}
+      <PaymentGatewayModal
+        open={showGatewayModal}
+        onOpenChange={setShowGatewayModal}
+        amount={totalPrice}
+        onSuccess={handleGatewaySuccess}
+        onCancel={() => setShowGatewayModal(false)}
+      />
     </div>
   );
 }
