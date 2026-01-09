@@ -20,6 +20,7 @@ import SelectCampus from "./pages/SelectCampus";
 import Menu from "./pages/Menu";
 import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
+import PhonePeSimulator from "./pages/PhonePeSimulator";
 import AdminDashboard from "./pages/AdminDashboard";
 
 import DedicatedScanner from "./pages/DedicatedScanner";
@@ -79,6 +80,9 @@ const App = () => (
                               <CampusGate>
                                 <OrderSuccess />
                               </CampusGate>
+                            } />
+                            <Route path="/phonepe-sandbox" element={
+                              <PhonePeSimulator />
                             } />
                             <Route path="/my-orders" element={
                               <CampusGate>

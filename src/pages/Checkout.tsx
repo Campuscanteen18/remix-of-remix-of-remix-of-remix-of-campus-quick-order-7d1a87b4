@@ -140,22 +140,9 @@ export default function Checkout() {
       setCurrentOrder(order);
       clearCart();
 
-      // Show success toast for demo mode
-      if (data.demoMode) {
-        toast({
-          title: 'Payment Successful!',
-          description: 'Demo payment processed. Redirecting...',
-        });
-      }
-
-      // Redirect to payment page or success page
+      // Redirect to PhonePe simulator or real payment page
       if (data.redirectUrl) {
-        // For demo mode, use navigate. For real PhonePe, use window.location
-        if (data.demoMode) {
-          navigate('/order-success');
-        } else {
-          window.location.href = data.redirectUrl;
-        }
+        window.location.href = data.redirectUrl;
       } else {
         navigate('/order-success');
       }
