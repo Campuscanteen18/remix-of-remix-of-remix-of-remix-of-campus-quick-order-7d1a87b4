@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 interface AdminAuthContextType {
   isAdmin: boolean;
@@ -7,40 +8,27 @@ interface AdminAuthContextType {
   isLoading: boolean;
   hasPin: boolean;
   storedAdminEmail: string | null;
-  authenticate: (pin: string) => boolean;
-  createPin: (pin: string) => boolean;
-  changePin: (oldPin: string, newPin: string) => boolean;
-  resetPin: () => void;
-  logout: () => void;
+  authenticate: (pin: string) => Promise<{ success: boolean; error?: string; remainingAttempts?: number }>;
+  createPin: (pin: string) => Promise<{ success: boolean; error?: string }>;
+  changePin: (oldPin: string, newPin: string) => Promise<{ success: boolean; error?: string }>;
+  resetPin: () => Promise<void>;
+  logout: () => Promise<void>;
   lastActivity: Date | null;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined);
 
-const SESSION_TIMEOUT = 30 * 60 * 1000; // 30 minutes
-const STORAGE_KEY = 'canteen_admin_session';
-const ADMIN_PINS_KEY = 'canteen_admin_pins';
+const SESSION_TOKEN_KEY = 'canteen_admin_session_token';
 const ADMIN_EMAIL_KEY = 'canteen_admin_email';
 
-// Simple hash function for PIN (in production, use proper hashing on server)
-const hashPin = (pin: string): string => {
-  let hash = 0;
-  for (let i = 0; i < pin.length; i++) {
-    const char = pin.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash.toString(16);
-};
-
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  // Now using isAdmin from AuthContext (database-driven)
   const { user, isAdmin } = useAuth();
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [hasPin, setHasPin] = useState(false);
   const [lastActivity, setLastActivity] = useState<Date | null>(null);
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
 
-  // Get stored admin email for PIN-only access
   const getStoredAdminEmail = (): string | null => {
     try {
       return localStorage.getItem(ADMIN_EMAIL_KEY);
@@ -51,166 +39,176 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
 
   const storedAdminEmail = getStoredAdminEmail();
 
-  // Check if admin has set up a PIN
-  const getStoredPins = (): Record<string, string> => {
-    try {
-      const stored = localStorage.getItem(ADMIN_PINS_KEY);
-      return stored ? JSON.parse(stored) : {};
-    } catch {
-      return {};
-    }
+  // Get auth token for API calls
+  const getAuthToken = async (): Promise<string | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    return session?.access_token || null;
   };
 
-  // Check if there's a PIN for the current user or stored admin email
-  const adminEmail = user?.email?.toLowerCase() || storedAdminEmail;
-  const hasPin = adminEmail ? !!getStoredPins()[adminEmail] : false;
+  // Call admin-auth edge function
+  const callAdminAuth = async (action: string, data: Record<string, string> = {}): Promise<{ success?: boolean; error?: string; [key: string]: unknown }> => {
+    const token = await getAuthToken();
+    if (!token) {
+      return { error: 'Not authenticated' };
+    }
 
-  // Check existing session on mount
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${token}`,
+    };
+
+    // Add session token if available
+    const storedSession = localStorage.getItem(SESSION_TOKEN_KEY);
+    if (storedSession) {
+      headers['X-Admin-Session'] = storedSession;
+    }
+
+    const { data: response, error } = await supabase.functions.invoke('admin-auth', {
+      body: { action, ...data },
+      headers,
+    });
+
+    if (error) {
+      console.error('Admin auth error:', error);
+      return { error: error.message };
+    }
+
+    return response;
+  };
+
+  // Check if user has PIN and verify session on mount
   useEffect(() => {
-    const checkSession = () => {
-      try {
-        const emailToCheck = user?.email?.toLowerCase() || storedAdminEmail;
-        
-        // isAdmin now comes from database via AuthContext
-        if (!emailToCheck || !isAdmin) {
-          setIsAdminAuthenticated(false);
-          setIsLoading(false);
-          return;
-        }
+    const checkPinAndSession = async () => {
+      if (!user || !isAdmin) {
+        setIsAdminAuthenticated(false);
+        setHasPin(false);
+        setIsLoading(false);
+        return;
+      }
 
-        const session = localStorage.getItem(STORAGE_KEY);
-        if (session) {
-          const { timestamp, email } = JSON.parse(session);
-          const elapsed = Date.now() - timestamp;
-          
-          if (email === emailToCheck && elapsed < SESSION_TIMEOUT) {
+      try {
+        // Check if PIN exists
+        const pinResult = await callAdminAuth('check-pin');
+        setHasPin(!!pinResult.hasPin);
+
+        // Verify existing session
+        const storedSession = localStorage.getItem(SESSION_TOKEN_KEY);
+        if (storedSession) {
+          const sessionResult = await callAdminAuth('verify-session');
+          if (sessionResult.valid) {
             setIsAdminAuthenticated(true);
-            setLastActivity(new Date(timestamp));
+            setSessionToken(storedSession);
+            setLastActivity(new Date());
           } else {
-            localStorage.removeItem(STORAGE_KEY);
+            localStorage.removeItem(SESSION_TOKEN_KEY);
+            setIsAdminAuthenticated(false);
           }
         }
-      } catch {
-        localStorage.removeItem(STORAGE_KEY);
+      } catch (error) {
+        console.error('Error checking PIN/session:', error);
       }
+
       setIsLoading(false);
     };
 
-    checkSession();
-  }, [user, isAdmin, storedAdminEmail]);
-
-  // Update activity timestamp periodically
-  useEffect(() => {
-    const emailToUse = user?.email?.toLowerCase() || storedAdminEmail;
-    if (!isAdminAuthenticated || !emailToUse) return;
-
-    const updateActivity = () => {
-      const now = Date.now();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
-        timestamp: now, 
-        email: emailToUse 
-      }));
-      setLastActivity(new Date(now));
-    };
-
-    const events = ['mousedown', 'keydown', 'touchstart', 'scroll'];
-    events.forEach(event => window.addEventListener(event, updateActivity));
-
-    const interval = setInterval(() => {
-      const session = localStorage.getItem(STORAGE_KEY);
-      if (session) {
-        const { timestamp } = JSON.parse(session);
-        if (Date.now() - timestamp > SESSION_TIMEOUT) {
-          setIsAdminAuthenticated(false);
-          localStorage.removeItem(STORAGE_KEY);
-        }
-      }
-    }, 60000);
-
-    return () => {
-      events.forEach(event => window.removeEventListener(event, updateActivity));
-      clearInterval(interval);
-    };
-  }, [isAdminAuthenticated, user, storedAdminEmail]);
-
-  const authenticate = useCallback((pin: string): boolean => {
-    const emailToUse = user?.email?.toLowerCase() || storedAdminEmail;
-    if (!emailToUse || !isAdmin) return false;
-
-    const pins = getStoredPins();
-    const storedHash = pins[emailToUse];
-    
-    if (!storedHash) return false;
-    
-    if (hashPin(pin) === storedHash) {
-      const now = Date.now();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
-        timestamp: now, 
-        email: emailToUse 
-      }));
-      setIsAdminAuthenticated(true);
-      setLastActivity(new Date(now));
-      return true;
-    }
-    return false;
-  }, [user, isAdmin, storedAdminEmail]);
-
-  const createPin = useCallback((pin: string): boolean => {
-    if (!user || !isAdmin || pin.length < 4) return false;
-
-    const adminEmail = user.email.toLowerCase();
-    const pins = getStoredPins();
-    pins[adminEmail] = hashPin(pin);
-    localStorage.setItem(ADMIN_PINS_KEY, JSON.stringify(pins));
-    
-    // Store admin email for PIN-only access on future visits
-    localStorage.setItem(ADMIN_EMAIL_KEY, adminEmail);
-    
-    // Auto-authenticate after creating PIN
-    const now = Date.now();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ 
-      timestamp: now, 
-      email: adminEmail 
-    }));
-    setIsAdminAuthenticated(true);
-    setLastActivity(new Date(now));
-    
-    return true;
+    checkPinAndSession();
   }, [user, isAdmin]);
 
-  const changePin = useCallback((oldPin: string, newPin: string): boolean => {
-    const emailToUse = user?.email?.toLowerCase() || storedAdminEmail;
-    if (!emailToUse || !isAdmin) return false;
+  // Periodically verify session and extend it
+  useEffect(() => {
+    if (!isAdminAuthenticated || !sessionToken) return;
 
-    const pins = getStoredPins();
-    const storedHash = pins[emailToUse];
-    
-    if (storedHash && hashPin(oldPin) === storedHash && newPin.length >= 4) {
-      pins[emailToUse] = hashPin(newPin);
-      localStorage.setItem(ADMIN_PINS_KEY, JSON.stringify(pins));
-      return true;
+    const interval = setInterval(async () => {
+      const result = await callAdminAuth('verify-session');
+      if (!result.valid) {
+        setIsAdminAuthenticated(false);
+        setSessionToken(null);
+        localStorage.removeItem(SESSION_TOKEN_KEY);
+      } else {
+        setLastActivity(new Date());
+      }
+    }, 5 * 60 * 1000); // Check every 5 minutes
+
+    return () => clearInterval(interval);
+  }, [isAdminAuthenticated, sessionToken]);
+
+  const authenticate = useCallback(async (pin: string): Promise<{ success: boolean; error?: string; remainingAttempts?: number }> => {
+    if (!user || !isAdmin) {
+      return { success: false, error: 'Not authorized' };
     }
-    return false;
-  }, [user, isAdmin, storedAdminEmail]);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(STORAGE_KEY);
+    const result = await callAdminAuth('verify-pin', { pin });
+
+    if (result.success && result.sessionToken) {
+      localStorage.setItem(SESSION_TOKEN_KEY, result.sessionToken as string);
+      localStorage.setItem(ADMIN_EMAIL_KEY, user.email?.toLowerCase() || '');
+      setSessionToken(result.sessionToken as string);
+      setIsAdminAuthenticated(true);
+      setLastActivity(new Date());
+      return { success: true };
+    }
+
+    return { 
+      success: false, 
+      error: result.error as string,
+      remainingAttempts: result.remainingAttempts as number | undefined
+    };
+  }, [user, isAdmin]);
+
+  const createPin = useCallback(async (pin: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user || !isAdmin) {
+      return { success: false, error: 'Not authorized' };
+    }
+
+    if (pin.length < 4 || pin.length > 8) {
+      return { success: false, error: 'PIN must be 4-8 digits' };
+    }
+
+    const result = await callAdminAuth('create-pin', { pin });
+
+    if (result.success) {
+      setHasPin(true);
+      // After creating PIN, authenticate automatically
+      return authenticate(pin);
+    }
+
+    return { success: false, error: result.error as string };
+  }, [user, isAdmin, authenticate]);
+
+  const changePin = useCallback(async (oldPin: string, newPin: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user || !isAdmin) {
+      return { success: false, error: 'Not authorized' };
+    }
+
+    if (newPin.length < 4 || newPin.length > 8) {
+      return { success: false, error: 'New PIN must be 4-8 digits' };
+    }
+
+    const result = await callAdminAuth('change-pin', { pin: oldPin, newPin });
+
+    if (result.success) {
+      return { success: true };
+    }
+
+    return { success: false, error: result.error as string };
+  }, [user, isAdmin]);
+
+  const logout = useCallback(async () => {
+    await callAdminAuth('logout');
+    localStorage.removeItem(SESSION_TOKEN_KEY);
+    setSessionToken(null);
     setIsAdminAuthenticated(false);
     setLastActivity(null);
   }, []);
 
-  const resetPin = useCallback(() => {
-    const emailToUse = user?.email?.toLowerCase() || storedAdminEmail;
-    if (!emailToUse) return;
-    
-    const pins = getStoredPins();
-    delete pins[emailToUse];
-    localStorage.setItem(ADMIN_PINS_KEY, JSON.stringify(pins));
-    localStorage.removeItem(STORAGE_KEY);
+  const resetPin = useCallback(async () => {
+    await callAdminAuth('reset-pin');
+    localStorage.removeItem(SESSION_TOKEN_KEY);
     localStorage.removeItem(ADMIN_EMAIL_KEY);
+    setSessionToken(null);
+    setHasPin(false);
     setIsAdminAuthenticated(false);
     setLastActivity(null);
-  }, [user, storedAdminEmail]);
+  }, []);
 
   return (
     <AdminAuthContext.Provider value={{

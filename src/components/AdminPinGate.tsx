@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Logo } from '@/components/Logo';
-import { ArrowLeft, Lock, Eye, EyeOff, ShieldCheck, KeyRound, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Lock, Eye, EyeOff, ShieldCheck, KeyRound, AlertCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -23,6 +23,7 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
   const [attempts, setAttempts] = useState(0);
   const [isLocked, setIsLocked] = useState(false);
   const [lockTimer, setLockTimer] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -54,7 +55,7 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
     }
   }, [isLocked, lockTimer]);
 
-  const handleCreatePin = (e: React.FormEvent) => {
+  const handleCreatePin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (pin.length < 4) {
@@ -68,17 +69,22 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
       return;
     }
 
-    const success = createPin(pin);
-    if (success) {
-      toast.success('Admin PIN created successfully!');
-      setPin('');
-      setConfirmPin('');
-    } else {
-      toast.error('Failed to create PIN');
+    setIsSubmitting(true);
+    try {
+      const result = await createPin(pin);
+      if (result.success) {
+        toast.success('Admin PIN created successfully!');
+        setPin('');
+        setConfirmPin('');
+      } else {
+        toast.error(result.error || 'Failed to create PIN');
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleVerifyPin = (e: React.FormEvent) => {
+  const handleVerifyPin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (isLocked) {
@@ -91,24 +97,49 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
       return;
     }
 
-    const success = authenticate(pin);
-    
-    if (success) {
-      toast.success('Welcome to Admin Dashboard');
-      setPin('');
-      setAttempts(0);
-    } else {
-      const newAttempts = attempts + 1;
-      setAttempts(newAttempts);
-      setPin('');
+    setIsSubmitting(true);
+    try {
+      const result = await authenticate(pin);
       
-      if (newAttempts >= MAX_ATTEMPTS) {
-        setIsLocked(true);
-        setLockTimer(LOCK_DURATION);
-        toast.error(`Too many failed attempts. Locked for ${LOCK_DURATION} seconds.`);
+      if (result.success) {
+        toast.success('Welcome to Admin Dashboard');
+        setPin('');
+        setAttempts(0);
       } else {
-        toast.error(`Invalid PIN. ${MAX_ATTEMPTS - newAttempts} attempts remaining.`);
+        // Check if locked by server
+        if (result.error?.includes('Too many failed attempts')) {
+          setIsLocked(true);
+          const match = result.error.match(/(\d+) minutes/);
+          setLockTimer(match ? parseInt(match[1]) * 60 : LOCK_DURATION);
+          toast.error(result.error);
+        } else {
+          const newAttempts = attempts + 1;
+          setAttempts(newAttempts);
+          setPin('');
+          
+          const remaining = result.remainingAttempts ?? (MAX_ATTEMPTS - newAttempts);
+          
+          if (remaining <= 0) {
+            setIsLocked(true);
+            setLockTimer(LOCK_DURATION);
+            toast.error(`Too many failed attempts. Locked for ${LOCK_DURATION} seconds.`);
+          } else {
+            toast.error(`Invalid PIN. ${remaining} attempts remaining.`);
+          }
+        }
       }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPin = async () => {
+    setIsSubmitting(true);
+    try {
+      await resetPin();
+      toast.success('PIN has been reset. Please login again to create a new PIN.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -215,11 +246,12 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
                     <Input
                       ref={inputRef}
                       type={showPin ? 'text' : 'password'}
-                      placeholder="Enter 4-6 digit PIN"
+                      placeholder="Enter 4-8 digit PIN"
                       value={pin}
-                      onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
                       className="pl-10 pr-12 h-12 text-center text-xl tracking-[0.5em] rounded-xl"
                       autoComplete="off"
+                      disabled={isSubmitting}
                     />
                     <button
                       type="button"
@@ -239,9 +271,10 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
                       type={showPin ? 'text' : 'password'}
                       placeholder="Confirm your PIN"
                       value={confirmPin}
-                      onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
                       className="pl-10 h-12 text-center text-xl tracking-[0.5em] rounded-xl"
                       autoComplete="off"
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
@@ -249,9 +282,16 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
                 <Button
                   type="submit"
                   className="w-full h-12 rounded-xl text-lg font-semibold"
-                  disabled={pin.length < 4 || confirmPin.length < 4}
+                  disabled={pin.length < 4 || confirmPin.length < 4 || isSubmitting}
                 >
-                  Create PIN & Continue
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                      Creating PIN...
+                    </>
+                  ) : (
+                    'Create PIN & Continue'
+                  )}
                 </Button>
 
                 <Button
@@ -259,6 +299,7 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
                   variant="ghost"
                   className="w-full"
                   onClick={() => navigate('/')}
+                  disabled={isSubmitting}
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Home
@@ -302,9 +343,9 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
                   type={showPin ? 'text' : 'password'}
                   placeholder="Enter PIN"
                   value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
                   className="pl-10 pr-12 h-14 text-center text-2xl tracking-[0.5em] rounded-xl"
-                  disabled={isLocked}
+                  disabled={isLocked || isSubmitting}
                   autoComplete="off"
                 />
                 <button
@@ -341,9 +382,18 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
               <Button
                 type="submit"
                 className="w-full h-14 rounded-xl text-lg font-semibold"
-                disabled={isLocked || pin.length < 4}
+                disabled={isLocked || pin.length < 4 || isSubmitting}
               >
-                {isLocked ? `Locked (${lockTimer}s)` : 'Access Dashboard'}
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                    Verifying...
+                  </>
+                ) : isLocked ? (
+                  `Locked (${lockTimer}s)`
+                ) : (
+                  'Access Dashboard'
+                )}
               </Button>
 
               <div className="flex flex-col gap-2">
@@ -352,6 +402,7 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
                   variant="ghost"
                   className="w-full"
                   onClick={() => navigate('/')}
+                  disabled={isSubmitting}
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Home
@@ -361,10 +412,8 @@ export function AdminPinGate({ children }: AdminPinGateProps) {
                   type="button"
                   variant="link"
                   className="w-full text-muted-foreground"
-                  onClick={() => {
-                    resetPin();
-                    toast.success('PIN has been reset. Please login again to create a new PIN.');
-                  }}
+                  onClick={handleResetPin}
+                  disabled={isSubmitting}
                 >
                   Forgot PIN? Reset & Login Again
                 </Button>

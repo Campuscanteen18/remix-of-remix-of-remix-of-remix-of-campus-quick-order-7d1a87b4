@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_pins: {
+        Row: {
+          created_at: string
+          id: string
+          pin_hash: string
+          salt: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          pin_hash: string
+          salt: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          pin_hash?: string
+          salt?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      admin_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          session_token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at: string
+          id?: string
+          session_token: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          session_token?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       campuses: {
         Row: {
           address: string | null
@@ -416,6 +467,7 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_expired_admin_sessions: { Args: never; Returns: number }
       get_user_campus_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
