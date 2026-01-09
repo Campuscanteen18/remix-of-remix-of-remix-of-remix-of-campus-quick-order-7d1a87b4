@@ -193,7 +193,18 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, [user, isAdmin]);
 
   const logout = useCallback(async () => {
-    await callAdminAuth('logout');
+    // Try to call the edge function, but don't fail if auth is already invalid
+    try {
+      const token = await getAuthToken();
+      if (token) {
+        await callAdminAuth('logout');
+      }
+    } catch (error) {
+      // Ignore errors - the main goal is to clear local state
+      console.log('Admin logout cleanup (auth may already be invalidated)');
+    }
+    
+    // Always clear local state regardless of edge function result
     localStorage.removeItem(SESSION_TOKEN_KEY);
     setSessionToken(null);
     setIsAdminAuthenticated(false);
@@ -201,7 +212,16 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetPin = useCallback(async () => {
-    await callAdminAuth('reset-pin');
+    // Try to call the edge function, but don't fail if auth is already invalid
+    try {
+      const token = await getAuthToken();
+      if (token) {
+        await callAdminAuth('reset-pin');
+      }
+    } catch (error) {
+      console.log('Admin reset cleanup (auth may already be invalidated)');
+    }
+    
     localStorage.removeItem(SESSION_TOKEN_KEY);
     localStorage.removeItem(ADMIN_EMAIL_KEY);
     setSessionToken(null);
