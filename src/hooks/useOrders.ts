@@ -36,6 +36,7 @@ export function useOrders(): UseOrdersReturn {
   const fetchOrders = useCallback(async () => {
     const { data: session } = await supabase.auth.getSession();
     if (!session.session?.user) {
+      console.log('useOrders: No session, clearing orders');
       setOrders([]);
       setIsLoading(false);
       return;
@@ -45,9 +46,10 @@ export function useOrders(): UseOrdersReturn {
     setError(null);
 
     try {
-      // IMPORTANT: don't hard-require campus context here.
-      // If campus isn't loaded (e.g., missing localStorage/metadata), we can still fetch user's orders.
-      let query = supabase
+      console.log('useOrders: Fetching orders for user:', session.session.user.id);
+      
+      // Fetch all user orders - don't filter by campus to ensure we get all orders
+      const { data, error: fetchError } = await supabase
         .from('orders')
         .select(`
           *,
@@ -62,13 +64,12 @@ export function useOrders(): UseOrdersReturn {
         .order('created_at', { ascending: false })
         .limit(20);
 
-      if (campus?.id) {
-        query = query.eq('campus_id', campus.id);
+      if (fetchError) {
+        console.error('useOrders: Fetch error:', fetchError);
+        throw fetchError;
       }
 
-      const { data, error: fetchError } = await query;
-
-      if (fetchError) throw fetchError;
+      console.log('useOrders: Raw orders from DB:', data);
 
       // Transform to match Order type
       const transformedOrders: Order[] = (data || []).map(order => ({
@@ -95,6 +96,7 @@ export function useOrders(): UseOrdersReturn {
         paymentMethod: order.payment_method || undefined,
       }));
 
+      console.log('useOrders: Transformed orders:', transformedOrders);
       setOrders(transformedOrders);
     } catch (err) {
       console.error('Error fetching orders:', err);
@@ -102,7 +104,7 @@ export function useOrders(): UseOrdersReturn {
     } finally {
       setIsLoading(false);
     }
-  }, [campus?.id]);
+  }, []);
 
   useEffect(() => {
     fetchOrders();
