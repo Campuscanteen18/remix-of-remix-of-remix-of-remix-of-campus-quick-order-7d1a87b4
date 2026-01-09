@@ -387,7 +387,19 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      user_roles_readable: {
+        Row: {
+          campus_code: string | null
+          campus_name: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string | null
+          role: Database["public"]["Enums"]["app_role"] | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       get_user_campus_id: { Args: { _user_id: string }; Returns: string }
