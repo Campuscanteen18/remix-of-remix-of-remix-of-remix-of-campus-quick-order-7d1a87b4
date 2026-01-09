@@ -88,17 +88,45 @@ export default function Auth() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         setTimeout(async () => {
-          const { data: roles } = await supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', session.user.id)
-            .maybeSingle();
+          // Fetch role and user's home campus
+          const [rolesResult, profileResult] = await Promise.all([
+            supabase
+              .from('user_roles')
+              .select('role, campus_id')
+              .eq('user_id', session.user.id)
+              .maybeSingle(),
+            supabase
+              .from('profiles')
+              .select('campus_id')
+              .eq('user_id', session.user.id)
+              .maybeSingle(),
+          ]);
 
-          if (roles?.role === 'admin') {
-            navigate('/admin');
-          } else if (roles?.role === 'kiosk') {
-            navigate('/kiosk-scanner');
+          const userRole = rolesResult.data?.role;
+          const userHomeCampusId = profileResult.data?.campus_id || rolesResult.data?.campus_id;
+          const currentCampusId = campus?.id;
+
+          // Admin/Kiosk: Strict campus check - must be at their home campus
+          if (userRole === 'admin' || userRole === 'kiosk') {
+            if (currentCampusId && userHomeCampusId && currentCampusId !== userHomeCampusId) {
+              // Admin at wrong campus - kick them out
+              toast({
+                title: 'Access Denied',
+                description: 'You can only access the admin dashboard at your home campus.',
+                variant: 'destructive',
+              });
+              await supabase.auth.signOut();
+              return;
+            }
+            navigate(userRole === 'admin' ? '/admin' : '/kiosk-scanner');
           } else {
+            // Students: Allow roaming - show welcome toast if visiting
+            if (currentCampusId && userHomeCampusId && currentCampusId !== userHomeCampusId) {
+              toast({
+                title: 'Welcome, Visitor! 🎉',
+                description: `You are visiting ${campus?.name || 'this campus'}. Enjoy your meal!`,
+              });
+            }
             navigate('/menu');
           }
         }, 0);
@@ -106,7 +134,7 @@ export default function Auth() {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, campus, toast]);
 
   const clearErrors = () => setErrors({});
 
