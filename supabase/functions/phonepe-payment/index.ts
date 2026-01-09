@@ -40,40 +40,19 @@ serve(async (req) => {
     const merchantTransactionId = `TXN_${orderId}_${Date.now()}`;
 
     if (DEMO_MODE) {
-      // In demo mode, directly mark payment as successful and redirect
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseServiceKey);
+      // In demo mode, redirect to simulator page (payment will be marked as paid there)
+      const origin = req.headers.get('origin') || 'http://localhost:5173';
+      const simulatorUrl = `${origin}/phonepe-sandbox?orderId=${orderId}&amount=${amount}&txnId=${merchantTransactionId}`;
 
-      // Update order as paid
-      const { error } = await supabase
-        .from('orders')
-        .update({ 
-          payment_status: 'paid',
-          status: 'confirmed',
-          payment_method: 'PHONEPE_DEMO',
-          notes: `Demo TXN: ${merchantTransactionId}`
-        })
-        .eq('id', orderId);
+      console.log(`Demo mode: Redirecting to simulator at ${simulatorUrl}`);
 
-      if (error) {
-        console.error('Error updating order:', error);
-        return new Response(
-          JSON.stringify({ success: false, error: 'Failed to update order' }),
-          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      }
-
-      console.log(`Demo payment successful for order ${orderId}`);
-
-      // Return success with redirect URL (to order success page)
       return new Response(
         JSON.stringify({
           success: true,
           merchantTransactionId,
-          redirectUrl: redirectUrl || `${req.headers.get('origin')}/order-success?orderId=${orderId}`,
+          redirectUrl: simulatorUrl,
           demoMode: true,
-          message: 'Demo payment processed successfully'
+          message: 'Redirecting to PhonePe sandbox simulator'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
