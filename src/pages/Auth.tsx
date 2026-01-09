@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,9 +18,11 @@ const nameSchema = z.string().trim().min(2, 'Name must be at least 2 characters'
 
 export default function Auth() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { campus } = useCampus();
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -29,8 +31,23 @@ export default function Auth() {
   const [signupName, setSignupName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Check for existing session on mount
+  // Handle logout parameter - logout first before showing auth page
   useEffect(() => {
+    const shouldLogout = searchParams.get('logout') === 'true';
+    if (shouldLogout) {
+      setIsLoggingOut(true);
+      supabase.auth.signOut().then(() => {
+        setIsLoggingOut(false);
+        // Remove the logout param from URL
+        navigate('/auth', { replace: true });
+      });
+    }
+  }, [searchParams, navigate]);
+
+  // Check for existing session on mount (only if not logging out)
+  useEffect(() => {
+    if (isLoggingOut) return;
+    
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
@@ -51,7 +68,7 @@ export default function Auth() {
       }
     };
     checkSession();
-  }, [navigate]);
+  }, [navigate, isLoggingOut]);
 
   // Listen for auth state changes
   useEffect(() => {
