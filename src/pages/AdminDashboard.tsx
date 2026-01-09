@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAdminAuth } from "@/context/AdminAuthContext";
+import { useAuth } from "@/context/AuthContext";
 import {
   useAdminMenuItems,
   useCreateMenuItem,
@@ -59,7 +60,8 @@ const TIME_PERIODS = [
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { logout } = useAdminAuth();
+  const { logout: pinLogout } = useAdminAuth();
+  const { logout: authLogout } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
 
@@ -90,8 +92,10 @@ export default function AdminDashboard() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const handleSignOut = async () => {
-    await logout();
-    navigate("/");
+    // Clear admin PIN session + Supabase session
+    pinLogout();
+    await authLogout();
+    navigate("/auth?logout=true");
   };
 
   const resetForm = () => {
@@ -273,7 +277,7 @@ export default function AdminDashboard() {
       <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-md border-b border-border">
         <div className="flex items-center justify-between px-4 lg:px-6 h-16">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate("/menu")} className="gap-1">
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1">
               <ArrowLeft size={16} />
               <span className="hidden sm:inline">Back</span>
             </Button>
