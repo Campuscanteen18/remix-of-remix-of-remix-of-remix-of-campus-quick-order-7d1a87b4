@@ -126,7 +126,7 @@ export default function Checkout() {
       });
 
       if (error || !data?.success) {
-        console.error('PhonePe initiation error:', error || data?.error);
+        console.error('Payment initiation error:', error || data?.error);
         toast({
           title: 'Payment Error',
           description: data?.error || 'Could not initiate payment. Please try again.',
@@ -139,9 +139,24 @@ export default function Checkout() {
       setCurrentOrder(order);
       clearCart();
 
-      // Redirect to PhonePe payment page
+      // Show success toast for demo mode
+      if (data.demoMode) {
+        toast({
+          title: 'Payment Successful!',
+          description: 'Demo payment processed. Redirecting...',
+        });
+      }
+
+      // Redirect to payment page or success page
       if (data.redirectUrl) {
-        window.location.href = data.redirectUrl;
+        // For demo mode, use navigate. For real PhonePe, use window.location
+        if (data.demoMode) {
+          navigate('/order-success');
+        } else {
+          window.location.href = data.redirectUrl;
+        }
+      } else {
+        navigate('/order-success');
       }
     } catch (error) {
       console.error('PhonePe payment error:', error);
