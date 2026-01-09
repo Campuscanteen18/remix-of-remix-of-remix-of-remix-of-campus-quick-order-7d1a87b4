@@ -3,6 +3,21 @@ import { Order, CartItem } from '@/types/canteen';
 import { useOrdersContext } from '@/context/OrdersContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useCampus } from '@/context/CampusContext';
+import { z } from 'zod';
+
+// Input validation schema
+const createOrderParamsSchema = z.object({
+  items: z.array(z.object({
+    id: z.string(),
+    name: z.string().min(1).max(200),
+    price: z.number().nonnegative(),
+    quantity: z.number().int().positive().max(100),
+  })).min(1),
+  total: z.number().positive().max(999999),
+  paymentMethod: z.string().min(1).max(50),
+  customerName: z.string().max(100).optional(),
+  customerEmail: z.string().email().max(255).optional().or(z.literal('')).or(z.undefined()),
+});
 
 interface CreateOrderParams {
   items: CartItem[];
@@ -122,6 +137,26 @@ export function useOrders(): UseOrdersReturn {
     setError(null);
     
     try {
+      // Validate input
+      const validationResult = createOrderParamsSchema.safeParse({
+        items: params.items.map(item => ({
+          id: item.id,
+          name: item.name,
+          price: item.price,
+          quantity: item.quantity,
+        })),
+        total: params.total,
+        paymentMethod: params.paymentMethod,
+        customerName: params.customerName,
+        customerEmail: params.customerEmail,
+      });
+
+      if (!validationResult.success) {
+        const errorMsg = validationResult.error.errors[0]?.message || 'Invalid order data';
+        setError(errorMsg);
+        return null;
+      }
+
       // Get user profile for customer info
       const { data: profile } = await supabase
         .from('profiles')
