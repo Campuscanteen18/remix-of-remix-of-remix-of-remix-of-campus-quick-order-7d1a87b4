@@ -47,16 +47,15 @@ export default function Auth() {
   // Check for existing session on mount (only if not logging out)
   useEffect(() => {
     if (isLoggingOut) return;
-    
+
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // User is already logged in, redirect based on role
         const { data: roles } = await supabase
           .from('user_roles')
           .select('role')
           .eq('user_id', session.user.id)
-          .single();
+          .maybeSingle();
 
         if (roles?.role === 'admin') {
           navigate('/admin');
@@ -67,33 +66,31 @@ export default function Auth() {
         }
       }
     };
+
     checkSession();
   }, [navigate, isLoggingOut]);
 
-  // Listen for auth state changes
+  // Listen for auth state changes (sync callback; defer DB lookup)
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session?.user) {
-          // Defer role lookup to prevent deadlock
-          setTimeout(async () => {
-            const { data: roles } = await supabase
-              .from('user_roles')
-              .select('role')
-              .eq('user_id', session.user.id)
-              .single();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session?.user) {
+        setTimeout(async () => {
+          const { data: roles } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', session.user.id)
+            .maybeSingle();
 
-            if (roles?.role === 'admin') {
-              navigate('/admin');
-            } else if (roles?.role === 'kiosk') {
-              navigate('/kiosk-scanner');
-            } else {
-              navigate('/menu');
-            }
-          }, 0);
-        }
+          if (roles?.role === 'admin') {
+            navigate('/admin');
+          } else if (roles?.role === 'kiosk') {
+            navigate('/kiosk-scanner');
+          } else {
+            navigate('/menu');
+          }
+        }, 0);
       }
-    );
+    });
 
     return () => subscription.unsubscribe();
   }, [navigate]);
