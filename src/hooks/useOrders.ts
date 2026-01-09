@@ -35,7 +35,7 @@ export function useOrders(): UseOrdersReturn {
 
   const fetchOrders = useCallback(async () => {
     const { data: session } = await supabase.auth.getSession();
-    if (!session.session?.user || !campus?.id) {
+    if (!session.session?.user) {
       setOrders([]);
       setIsLoading(false);
       return;
@@ -43,9 +43,11 @@ export function useOrders(): UseOrdersReturn {
 
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      const { data, error: fetchError } = await supabase
+      // IMPORTANT: don't hard-require campus context here.
+      // If campus isn't loaded (e.g., missing localStorage/metadata), we can still fetch user's orders.
+      let query = supabase
         .from('orders')
         .select(`
           *,
@@ -57,9 +59,14 @@ export function useOrders(): UseOrdersReturn {
           )
         `)
         .eq('user_id', session.session.user.id)
-        .eq('campus_id', campus.id)
         .order('created_at', { ascending: false })
         .limit(20);
+
+      if (campus?.id) {
+        query = query.eq('campus_id', campus.id);
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) throw fetchError;
 
