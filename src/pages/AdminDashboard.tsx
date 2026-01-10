@@ -522,33 +522,6 @@ export default function AdminDashboard() {
                     </Card>
                   </div>
 
-                  {/* Order Status Overview */}
-                  <Card className="rounded-2xl card-shadow">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Order Status</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-4 gap-2">
-                        <div className="text-center p-3 rounded-xl bg-amber-500/10">
-                          <p className="text-xl font-bold text-amber-600">{todayStats?.pendingOrders || 0}</p>
-                          <p className="text-xs text-muted-foreground">Pending</p>
-                        </div>
-                        <div className="text-center p-3 rounded-xl bg-blue-500/10">
-                          <p className="text-xl font-bold text-blue-600">{todayStats?.preparingOrders || 0}</p>
-                          <p className="text-xs text-muted-foreground">Preparing</p>
-                        </div>
-                        <div className="text-center p-3 rounded-xl bg-purple-500/10">
-                          <p className="text-xl font-bold text-purple-600">{todayStats?.readyOrders || 0}</p>
-                          <p className="text-xs text-muted-foreground">Ready</p>
-                        </div>
-                        <div className="text-center p-3 rounded-xl bg-green-500/10">
-                          <p className="text-xl font-bold text-green-600">{todayStats?.collectedOrders || 0}</p>
-                          <p className="text-xs text-muted-foreground">Collected</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
                   <div className="grid lg:grid-cols-2 gap-4">
                     {/* Time Period Breakdown */}
                     <Card className="rounded-2xl card-shadow">
