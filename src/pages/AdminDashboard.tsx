@@ -46,6 +46,9 @@ import {
   Mail,
   Phone,
   Building2,
+  Sun,
+  Utensils,
+  Cookie,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
@@ -589,9 +592,94 @@ export default function AdminDashboard() {
 
           {/* Orders Tab */}
           <TabsContent value="orders" className="space-y-4">
+            {/* Time Period Summary Cards */}
+            {(() => {
+              // Calculate order counts by time period based on order creation time
+              const getTimePeriod = (dateStr: string) => {
+                const hour = new Date(dateStr).getHours();
+                if (hour >= 7 && hour < 11) return 'breakfast';
+                if (hour >= 11 && hour < 15) return 'lunch';
+                if (hour >= 15 && hour < 18) return 'snacks';
+                return 'other';
+              };
+
+              const periodOrders = {
+                breakfast: orders.filter(o => getTimePeriod(o.created_at) === 'breakfast'),
+                lunch: orders.filter(o => getTimePeriod(o.created_at) === 'lunch'),
+                snacks: orders.filter(o => getTimePeriod(o.created_at) === 'snacks'),
+              };
+
+              // Count items per period
+              const getItemCounts = (periodOrdersList: typeof orders) => {
+                const itemCounts: Record<string, number> = {};
+                periodOrdersList.forEach(order => {
+                  order.items?.forEach(item => {
+                    itemCounts[item.name] = (itemCounts[item.name] || 0) + item.quantity;
+                  });
+                });
+                return Object.entries(itemCounts)
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 5);
+              };
+
+              const periodConfigs = [
+                { id: 'breakfast', name: 'Breakfast', icon: Sun, color: 'bg-amber-500/10 text-amber-600', time: '7 AM - 11 AM' },
+                { id: 'lunch', name: 'Lunch', icon: Utensils, color: 'bg-blue-500/10 text-blue-600', time: '11 AM - 3 PM' },
+                { id: 'snacks', name: 'Snacks', icon: Cookie, color: 'bg-purple-500/10 text-purple-600', time: '3 PM - 6 PM' },
+              ];
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {periodConfigs.map(period => {
+                    const ordersList = periodOrders[period.id as keyof typeof periodOrders];
+                    const itemCounts = getItemCounts(ordersList);
+                    const Icon = period.icon;
+
+                    return (
+                      <Card key={period.id} className="rounded-2xl card-shadow">
+                        <CardHeader className="pb-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className={`p-2 rounded-full ${period.color}`}>
+                                <Icon className="h-4 w-4" />
+                              </div>
+                              <div>
+                                <CardTitle className="text-base">{period.name}</CardTitle>
+                                <p className="text-xs text-muted-foreground">{period.time}</p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-2xl font-bold text-primary">{ordersList.length}</p>
+                              <p className="text-xs text-muted-foreground">orders</p>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          {itemCounts.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Top Items</p>
+                              {itemCounts.map(([name, count]) => (
+                                <div key={name} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/50">
+                                  <span className="text-sm font-medium truncate">{name}</span>
+                                  <span className="text-sm font-bold text-primary ml-2">{count}</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground text-center py-4">No orders yet</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+
+            {/* Orders List */}
             <Card className="rounded-2xl card-shadow">
               <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <CardTitle className="text-lg">Recent Orders</CardTitle>
+                <CardTitle className="text-lg">All Orders</CardTitle>
                 <Input
                   placeholder="Search by last 4 digits..."
                   value={orderSearch}
