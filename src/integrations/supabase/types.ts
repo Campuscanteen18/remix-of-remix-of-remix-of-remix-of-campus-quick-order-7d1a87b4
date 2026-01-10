@@ -394,66 +394,6 @@ export type Database = {
           },
         ]
       }
-      prepaid_tokens: {
-        Row: {
-          amount: number
-          campus_id: string
-          created_at: string
-          customer_email: string | null
-          customer_name: string | null
-          id: string
-          is_used: boolean
-          payment_status: string
-          qr_code: string
-          token_number: string
-          used_at: string | null
-          user_id: string
-        }
-        Insert: {
-          amount: number
-          campus_id: string
-          created_at?: string
-          customer_email?: string | null
-          customer_name?: string | null
-          id?: string
-          is_used?: boolean
-          payment_status?: string
-          qr_code: string
-          token_number: string
-          used_at?: string | null
-          user_id: string
-        }
-        Update: {
-          amount?: number
-          campus_id?: string
-          created_at?: string
-          customer_email?: string | null
-          customer_name?: string | null
-          id?: string
-          is_used?: boolean
-          payment_status?: string
-          qr_code?: string
-          token_number?: string
-          used_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "prepaid_tokens_campus_id_fkey"
-            columns: ["campus_id"]
-            isOneToOne: false
-            referencedRelation: "campus_public_info"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "prepaid_tokens_campus_id_fkey"
-            columns: ["campus_id"]
-            isOneToOne: false
-            referencedRelation: "campuses"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           avatar_url: string | null
