@@ -86,9 +86,18 @@ export default function KioskScanner() {
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
   const [verified, setVerified] = useState(false);
   const [alreadyUsed, setAlreadyUsed] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [showResult, setShowResult] = useState(false);
   const [printingOrder, setPrintingOrder] = useState(false);
+
+  // Check if order is expired (older than 5 hours)
+  const isOrderExpired = (createdAt: Date | string) => {
+    const orderDate = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
+    const now = new Date();
+    const fiveHoursMs = 5 * 60 * 60 * 1000;
+    return now.getTime() - orderDate.getTime() > fiveHoursMs;
+  };
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -169,9 +178,22 @@ export default function KioskScanner() {
 
       setOrderDetails(order);
 
+      // Check if order is expired (older than 5 hours)
+      if (isOrderExpired(foundOrder.createdAt)) {
+        setIsExpired(true);
+        setAlreadyUsed(false);
+        setVerified(false);
+        scannedOrdersRef.current.add(foundOrder.id);
+        scannedOrdersRef.current.add(foundOrder.qrCode);
+        if (soundEnabled) playErrorSound();
+        setShowResult(true);
+        return;
+      }
+
       if (order.qrUsed) {
         setAlreadyUsed(true);
         setVerified(false);
+        setIsExpired(false);
         scannedOrdersRef.current.add(foundOrder.id);
         scannedOrdersRef.current.add(foundOrder.qrCode);
         if (soundEnabled) playErrorSound();
@@ -186,6 +208,7 @@ export default function KioskScanner() {
         scannedOrdersRef.current.add(foundOrder.qrCode);
         setVerified(true);
         setAlreadyUsed(false);
+        setIsExpired(false);
         if (soundEnabled) playSuccessSound();
 
         // Print directly to Bluetooth printer - skip result screen for valid orders
@@ -284,6 +307,7 @@ export default function KioskScanner() {
     setOrderDetails(null);
     setVerified(false);
     setAlreadyUsed(false);
+    setIsExpired(false);
     setShowResult(false);
     setScanning(false);
 
@@ -381,6 +405,7 @@ export default function KioskScanner() {
     setOrderDetails(null);
     setVerified(false);
     setAlreadyUsed(false);
+    setIsExpired(false);
     setScanning(false);
     setPrintingOrder(false);
     
@@ -619,18 +644,20 @@ export default function KioskScanner() {
             </div>
           )}
 
-          {/* Small Error Overlay on Camera - for ALREADY USED / INVALID */}
+          {/* Small Error Overlay on Camera - for EXPIRED / ALREADY USED / INVALID */}
           {showResult && !verified && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="bg-destructive/95 backdrop-blur-sm rounded-2xl px-8 py-6 flex flex-col items-center shadow-2xl animate-in zoom-in-95 duration-200">
+              <div className={`${isExpired ? 'bg-orange-600/95' : 'bg-destructive/95'} backdrop-blur-sm rounded-2xl px-8 py-6 flex flex-col items-center shadow-2xl animate-in zoom-in-95 duration-200`}>
                 <XCircle className="w-12 h-12 text-white mb-3" />
                 <h2 className="text-white text-xl font-bold">
-                  {alreadyUsed ? 'ALREADY USED' : 'INVALID'}
+                  {isExpired ? 'EXPIRED' : alreadyUsed ? 'ALREADY USED' : 'INVALID'}
                 </h2>
                 <p className="text-white/80 text-sm mt-1 text-center max-w-[200px]">
-                  {alreadyUsed 
-                    ? 'QR already scanned' 
-                    : 'Order not found'}
+                  {isExpired 
+                    ? 'Token expired (5+ hours old)' 
+                    : alreadyUsed 
+                      ? 'QR already scanned' 
+                      : 'Order not found'}
                 </p>
               </div>
             </div>

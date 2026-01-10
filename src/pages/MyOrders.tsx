@@ -20,6 +20,13 @@ export default function MyOrders() {
     setIsRefetching(false);
   };
 
+  // Check if order is expired (older than 5 hours)
+  const isOrderExpired = (createdAt: Date) => {
+    const now = new Date();
+    const fiveHoursMs = 5 * 60 * 60 * 1000;
+    return now.getTime() - createdAt.getTime() > fiveHoursMs;
+  };
+
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString('en-IN', { 
       hour: '2-digit', 
@@ -145,24 +152,50 @@ export default function MyOrders() {
 
               {/* QR Code Section - Only show for paid orders */}
               {order.paymentStatus === 'completed' || order.paymentStatus === 'paid' ? (
-                <div className="bg-muted/50 p-4 border-t border-border">
-                  <p className="text-xs text-center text-muted-foreground mb-3">
-                    Show this QR code at the counter for pickup
-                  </p>
-                  <div className="flex justify-center">
-                    <div className="bg-white p-3 rounded-xl shadow-sm">
-                      <QRCodeSVG 
-                        value={order.qrCode}
-                        size={140}
-                        level="M"
-                        includeMargin={false}
-                      />
+                isOrderExpired(order.createdAt) ? (
+                  // Expired QR Code
+                  <div className="bg-red-50 dark:bg-red-900/20 p-4 border-t border-red-200 dark:border-red-800">
+                    <p className="text-sm text-center text-red-700 dark:text-red-400 font-medium">
+                      ❌ QR Code Expired
+                    </p>
+                    <p className="text-xs text-center text-red-600 dark:text-red-500 mt-1">
+                      This token has expired after 5 hours. Please contact the canteen staff.
+                    </p>
+                    <div className="flex justify-center mt-3">
+                      <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-xl opacity-50 grayscale">
+                        <QRCodeSVG 
+                          value={order.qrCode}
+                          size={100}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      </div>
                     </div>
+                    <p className="text-xs text-center text-muted-foreground mt-2 font-mono line-through">
+                      {order.qrCode || order.id}
+                    </p>
                   </div>
-                  <p className="text-xs text-center text-muted-foreground mt-3 font-mono">
-                    {order.qrCode || order.id}
-                  </p>
-                </div>
+                ) : (
+                  // Valid QR Code
+                  <div className="bg-muted/50 p-4 border-t border-border">
+                    <p className="text-xs text-center text-muted-foreground mb-3">
+                      Show this QR code at the counter for pickup
+                    </p>
+                    <div className="flex justify-center">
+                      <div className="bg-white p-3 rounded-xl shadow-sm">
+                        <QRCodeSVG 
+                          value={order.qrCode}
+                          size={140}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-center text-muted-foreground mt-3 font-mono">
+                      {order.qrCode || order.id}
+                    </p>
+                  </div>
+                )
               ) : (
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 border-t border-yellow-200 dark:border-yellow-800">
                   <p className="text-sm text-center text-yellow-700 dark:text-yellow-400 font-medium">
