@@ -757,12 +757,35 @@ export default function AdminDashboard() {
                       other: { name: 'Other', icon: Clock, color: 'bg-gray-500/10 text-gray-600' },
                     };
 
-                    // Filter orders first
+                    // Time boundaries
+                    const now = new Date();
+                    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                    const yesterdayStart = new Date(todayStart.getTime() - 24 * 60 * 60 * 1000);
+                    const fortyEightHoursAgo = new Date(now.getTime() - 48 * 60 * 60 * 1000);
+
+                    // Filter orders: show today's orders always, yesterday's only when searched
                     const filteredOrders = orders.filter((order) => {
-                      if (!orderSearch.trim()) return true;
+                      const orderDate = new Date(order.created_at);
                       const orderNum = order.order_number || order.id;
                       const lastFour = orderNum.slice(-4).toLowerCase();
-                      return lastFour.includes(orderSearch.toLowerCase().trim());
+                      const searchTerm = orderSearch.toLowerCase().trim();
+                      const matchesSearch = searchTerm && lastFour.includes(searchTerm);
+
+                      // Orders older than 48 hours: only show if searched
+                      if (orderDate < fortyEightHoursAgo) {
+                        return matchesSearch;
+                      }
+
+                      // Orders from yesterday (within 48 hours but not today): only show if searched
+                      if (orderDate < todayStart) {
+                        return matchesSearch;
+                      }
+
+                      // Today's orders: always show, or filter by search if searching
+                      if (searchTerm) {
+                        return matchesSearch;
+                      }
+                      return true;
                     });
 
                     // Group by time period
