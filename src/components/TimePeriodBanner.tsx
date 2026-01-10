@@ -6,8 +6,11 @@ interface TimePeriodBannerProps {
 }
 
 export function TimePeriodBanner({ period }: TimePeriodBannerProps) {
-  const formatTime = (hour: number) => {
-    return `${hour.toString().padStart(2, '0')}:00`;
+  const formatTime = (hour: number, minute: number) => {
+    const h = hour % 12 || 12;
+    const m = minute.toString().padStart(2, '0');
+    const ampm = hour < 12 ? 'AM' : 'PM';
+    return `${h}:${m} ${ampm}`;
   };
 
   return (
@@ -24,7 +27,7 @@ export function TimePeriodBanner({ period }: TimePeriodBannerProps) {
           Showing items available now
         </p>
         <p className="text-muted-foreground text-sm">
-          ({formatTime(period.startHour)} - {formatTime(period.endHour)})
+          ({formatTime(period.startHour, period.startMinute)} - {formatTime(period.endHour, period.endMinute)})
         </p>
       </div>
     </div>
