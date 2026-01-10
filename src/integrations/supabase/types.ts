@@ -197,6 +197,7 @@ export type Database = {
       }
       menu_items: {
         Row: {
+          available_days: Database["public"]["Enums"]["day_of_week"][] | null
           available_time_periods:
             | Database["public"]["Enums"]["time_period"][]
             | null
@@ -216,6 +217,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          available_days?: Database["public"]["Enums"]["day_of_week"][] | null
           available_time_periods?:
             | Database["public"]["Enums"]["time_period"][]
             | null
@@ -235,6 +237,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          available_days?: Database["public"]["Enums"]["day_of_week"][] | null
           available_time_periods?:
             | Database["public"]["Enums"]["time_period"][]
             | null
@@ -573,6 +576,7 @@ export type Database = {
     }
     Enums: {
       app_role: "student" | "admin" | "kiosk" | "super_admin"
+      day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat"
       order_status:
         | "pending"
         | "confirmed"
@@ -709,6 +713,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["student", "admin", "kiosk", "super_admin"],
+      day_of_week: ["mon", "tue", "wed", "thu", "fri", "sat"],
       order_status: [
         "pending",
         "confirmed",
