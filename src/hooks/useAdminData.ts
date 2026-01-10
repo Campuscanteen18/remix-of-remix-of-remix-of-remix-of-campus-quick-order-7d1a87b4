@@ -329,6 +329,34 @@ export function useUpdateOrderStatus() {
   });
 }
 
+// Mark order token as used (for old tokens brought by customers)
+export function useMarkTokenUsed() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Validate UUID format
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(id)) {
+        throw new Error('Invalid order ID');
+      }
+
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ is_used: true, status: 'collected' as const })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+    },
+  });
+}
+
 // Get order statistics
 export function useOrderStats() {
   const { campus } = useCampus();
