@@ -13,7 +13,7 @@ const menuItemCreateSchema = z.object({
   is_veg: z.boolean().optional(),
   is_popular: z.boolean().optional(),
   is_available: z.boolean().optional(),
-  available_time_periods: z.array(z.enum(['breakfast', 'lunch', 'snacks', 'dinner'])).optional(),
+  available_time_periods: z.array(z.enum(['breakfast', 'lunch', 'snacks'])).optional(),
   description: z.string().max(1000).optional(),
 });
 
@@ -27,7 +27,7 @@ const menuItemUpdateSchema = z.object({
   is_veg: z.boolean().optional(),
   is_popular: z.boolean().optional(),
   is_available: z.boolean().optional(),
-  available_time_periods: z.array(z.enum(['breakfast', 'lunch', 'snacks', 'dinner'])).optional(),
+  available_time_periods: z.array(z.enum(['breakfast', 'lunch', 'snacks'])).optional(),
   description: z.string().max(1000).optional(),
 });
 
@@ -162,7 +162,7 @@ export function useCreateMenuItem() {
           is_veg: validatedItem.is_veg ?? true,
           is_popular: validatedItem.is_popular ?? false,
           is_available: validatedItem.is_available ?? true,
-          available_time_periods: (validatedItem.available_time_periods || []) as ('breakfast' | 'lunch' | 'snacks' | 'dinner')[],
+          available_time_periods: (validatedItem.available_time_periods || []) as ('breakfast' | 'lunch' | 'snacks')[],
           description: validatedItem.description || null,
         }])
         .select()
