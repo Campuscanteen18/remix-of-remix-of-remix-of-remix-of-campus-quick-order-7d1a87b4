@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCampus } from '@/context/CampusContext';
 import { z } from 'zod';
@@ -251,9 +252,36 @@ export function useDeleteMenuItem() {
   });
 }
 
-// Fetch orders for the current campus
+// Fetch orders for the current campus with real-time updates
 export function useAdminOrders() {
   const { campus } = useCampus();
+  const queryClient = useQueryClient();
+
+  // Set up real-time subscription
+  useEffect(() => {
+    if (!campus?.id) return;
+
+    const channel = supabase
+      .channel('admin-orders-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'orders',
+          filter: `campus_id=eq.${campus.id}`,
+        },
+        () => {
+          // Invalidate and refetch orders when any change occurs
+          queryClient.invalidateQueries({ queryKey: ['admin-orders', campus.id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [campus?.id, queryClient]);
 
   return useQuery({
     queryKey: ['admin-orders', campus?.id],
@@ -291,7 +319,6 @@ export function useAdminOrders() {
       }));
     },
     enabled: !!campus?.id,
-    refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
 }
 
