@@ -604,45 +604,48 @@ export default function AdminDashboard() {
                     {orders.slice(0, 20).map((order) => (
                       <div
                         key={order.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-2xl bg-muted/50 gap-3"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-muted/50 gap-3"
                       >
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="font-semibold text-sm sm:text-base">{order.id}</h3>
+                            <span className="font-bold text-primary text-sm sm:text-base">
+                              #{order.order_number || order.id.slice(-8).toUpperCase()}
+                            </span>
                             <span
                               className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                                 order.status === "collected"
-                                  ? "bg-primary/10 text-primary"
+                                  ? "bg-green-500/10 text-green-600"
                                   : order.status === "cancelled"
                                     ? "bg-destructive/10 text-destructive"
                                     : order.status === "ready"
                                       ? "bg-secondary/10 text-secondary"
-                                      : "bg-muted text-muted-foreground"
+                                      : order.status === "confirmed"
+                                        ? "bg-blue-500/10 text-blue-600"
+                                        : "bg-amber-500/10 text-amber-600"
                               }`}
                             >
-                              {order.status}
+                              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                             </span>
                           </div>
-                          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                            ₹{order.total} • {new Date(order.created_at).toLocaleString()}
+                          <div className="flex items-center gap-2 mt-1.5">
+                            <span className="text-sm font-medium">
+                              {order.user_name || 'Guest'}
+                            </span>
+                            <span className="text-muted-foreground">•</span>
+                            <span className="text-sm text-muted-foreground">
+                              ₹{order.total}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {new Date(order.created_at).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
                           </p>
                         </div>
-                        <Select
-                          value={order.status}
-                          onValueChange={(value) => handleOrderStatusChange(order.id, value as 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled')}
-                        >
-                          <SelectTrigger className="w-full sm:w-32 h-9 rounded-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="confirmed">Confirmed</SelectItem>
-                            <SelectItem value="preparing">Preparing</SelectItem>
-                            <SelectItem value="ready">Ready</SelectItem>
-                            <SelectItem value="collected">Collected</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                          </SelectContent>
-                        </Select>
                       </div>
                     ))}
                   </div>
