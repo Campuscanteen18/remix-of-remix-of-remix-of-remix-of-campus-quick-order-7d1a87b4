@@ -25,6 +25,7 @@ import {
   useOrderStats,
 } from "@/hooks/useAdminData";
 import { useMonthlyAnalytics } from "@/hooks/useMonthlyAnalytics";
+import { useWeeklyAnalytics } from "@/hooks/useWeeklyAnalytics";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { toast } from "sonner";
 import {
@@ -146,6 +147,7 @@ export default function AdminDashboard() {
   const { data: orders = [], isLoading: ordersLoading } = useAdminOrders();
   const { data: stats } = useOrderStats();
   const { data: monthlyStats, isLoading: monthlyLoading } = useMonthlyAnalytics();
+  const { data: weeklyStats, isLoading: weeklyLoading } = useWeeklyAnalytics();
   const createMenuItem = useCreateMenuItem();
   const updateMenuItem = useUpdateMenuItem();
   const deleteMenuItem = useDeleteMenuItem();
@@ -575,6 +577,209 @@ export default function AdminDashboard() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Weekly Detailed Review */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-secondary" />
+                <h3 className="text-lg font-semibold">Weekly Review</h3>
+                {weeklyStats?.weekRange && (
+                  <span className="text-sm text-muted-foreground">({weeklyStats.weekRange})</span>
+                )}
+              </div>
+
+              {weeklyLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {/* Weekly Summary Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-3">
+                        <p className="text-[10px] text-muted-foreground">Total Orders</p>
+                        <p className="text-xl font-bold text-primary">{weeklyStats?.totalOrders || 0}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-3">
+                        <p className="text-[10px] text-muted-foreground">Revenue</p>
+                        <p className="text-xl font-bold text-secondary">₹{(weeklyStats?.totalRevenue || 0).toLocaleString()}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-3">
+                        <p className="text-[10px] text-muted-foreground">Busiest Day</p>
+                        <p className="text-xl font-bold">{weeklyStats?.busiestDay || '-'}</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-3">
+                        <p className="text-[10px] text-muted-foreground">Peak Hour</p>
+                        <p className="text-xl font-bold">{weeklyStats?.peakHour || '-'}</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid lg:grid-cols-2 gap-4">
+                    {/* Orders by Time Period */}
+                    <Card className="rounded-2xl card-shadow">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          Orders by Time Period
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {weeklyStats?.periodBreakdown && weeklyStats.periodBreakdown.some(p => p.orders > 0) ? (
+                          <div className="space-y-3">
+                            {weeklyStats.periodBreakdown.map((period, idx) => {
+                              const colors = ['bg-amber-500', 'bg-blue-500', 'bg-purple-500', 'bg-orange-500'];
+                              const bgColors = ['bg-amber-500/10', 'bg-blue-500/10', 'bg-purple-500/10', 'bg-orange-500/10'];
+                              const icons = [Sun, Utensils, Cookie, Utensils];
+                              const Icon = icons[idx];
+                              return (
+                                <div key={period.period} className={`p-3 rounded-xl ${bgColors[idx]}`}>
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <Icon className="h-4 w-4" />
+                                      <span className="font-semibold">{period.period}</span>
+                                    </div>
+                                    <span className="text-sm font-bold">{period.orders} orders</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 h-2 bg-background/50 rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full ${colors[idx]} rounded-full transition-all`}
+                                        style={{ width: `${period.percentage}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs font-medium w-10 text-right">{period.percentage}%</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Revenue: ₹{period.revenue.toLocaleString()}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-center py-6 text-muted-foreground">No orders this week</p>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Top Selling Items */}
+                    <Card className="rounded-2xl card-shadow">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          Top Selling Items
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {weeklyStats?.topItems && weeklyStats.topItems.length > 0 ? (
+                          <div className="space-y-2">
+                            {weeklyStats.topItems.map((item, idx) => (
+                              <div 
+                                key={item.name} 
+                                className="flex items-center justify-between p-3 rounded-xl bg-muted/50"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                    idx === 0 ? 'bg-yellow-500 text-yellow-950' : 
+                                    idx === 1 ? 'bg-gray-300 text-gray-700' : 
+                                    idx === 2 ? 'bg-amber-600 text-amber-50' : 
+                                    'bg-muted text-muted-foreground'
+                                  }`}>
+                                    {idx + 1}
+                                  </span>
+                                  <div>
+                                    <p className="font-medium text-sm">{item.name}</p>
+                                    <p className="text-xs text-muted-foreground">₹{item.revenue.toLocaleString()} revenue</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-primary">{item.quantity}</p>
+                                  <p className="text-xs text-muted-foreground">sold</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-center py-6 text-muted-foreground">No items sold this week</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* Daily Orders Chart */}
+                  <Card className="rounded-2xl card-shadow">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Daily Orders (Mon-Sun)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {weeklyStats?.dailyBreakdown && weeklyStats.dailyBreakdown.some(d => d.orders > 0) ? (
+                        <div className="h-[200px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={weeklyStats.dailyBreakdown}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                              <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+                              <Tooltip
+                                formatter={(value: number, name: string) => [
+                                  name === 'revenue' ? `₹${value.toLocaleString()}` : value,
+                                  name === 'revenue' ? 'Revenue' : 'Orders'
+                                ]}
+                                contentStyle={{
+                                  background: "hsl(var(--card))",
+                                  border: "1px solid hsl(var(--border))",
+                                  borderRadius: "12px",
+                                }}
+                              />
+                              <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[6, 6, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <p className="text-center py-6 text-muted-foreground">No daily data available</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Additional Metrics */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-green-500/10 flex items-center justify-center">
+                            <Package className="w-5 h-5 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Completion Rate</p>
+                            <p className="text-2xl font-bold text-green-600">{weeklyStats?.completionRate || 0}%</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center">
+                            <Users className="w-5 h-5 text-accent-foreground" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Avg Order Value</p>
+                            <p className="text-2xl font-bold">₹{weeklyStats?.avgOrderValue || 0}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Monthly Analytics Section */}
