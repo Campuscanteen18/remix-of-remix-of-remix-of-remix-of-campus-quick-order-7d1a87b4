@@ -505,15 +505,6 @@ export default function AdminDashboard() {
                         </div>
                       </CardContent>
                     </Card>
-                    <Card className="rounded-2xl card-shadow">
-                      <CardContent className="p-3 sm:p-4">
-                        <div className="text-center">
-                          <Users className="w-6 h-6 mx-auto text-muted-foreground mb-1" />
-                          <p className="text-2xl sm:text-3xl font-bold">₹{todayStats?.avgOrderValue || 0}</p>
-                          <p className="text-[10px] sm:text-xs text-muted-foreground">Avg Order</p>
-                        </div>
-                      </CardContent>
-                    </Card>
                   </div>
 
                   <div className="grid lg:grid-cols-2 gap-4">
