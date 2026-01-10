@@ -594,8 +594,11 @@ export default function AdminDashboard() {
           <TabsContent value="orders" className="space-y-4">
             {/* Current Time Period Summary Card */}
             {(() => {
-              // Get current time period
-              const currentHour = new Date().getHours();
+              // Get current time period using local time
+              const now = new Date();
+              const currentHour = now.getHours();
+              const currentMinutes = now.getMinutes();
+              
               let currentPeriodId = 'other';
               if (currentHour >= 7 && currentHour < 11) currentPeriodId = 'breakfast';
               else if (currentHour >= 11 && currentHour < 15) currentPeriodId = 'lunch';
@@ -638,13 +641,16 @@ export default function AdminDashboard() {
               // Find current period config
               const currentPeriod = periodConfigs.find(p => p.id === currentPeriodId);
 
-              // If outside meal times, show a message
+              // If outside meal times, show a message with current time for debugging
               if (!currentPeriod) {
                 return (
                   <Card className="rounded-2xl card-shadow">
                     <CardContent className="py-8">
                       <p className="text-center text-muted-foreground">
-                        Outside meal hours. Orders summary will show during Breakfast (7-11 AM), Lunch (11 AM-3 PM), or Snacks (3-6 PM).
+                        Current time: {currentHour}:{currentMinutes.toString().padStart(2, '0')} - Outside meal hours.
+                      </p>
+                      <p className="text-center text-muted-foreground text-sm mt-2">
+                        Orders summary shows during Breakfast (7-11 AM), Lunch (11 AM-3 PM), or Snacks (3-6 PM).
                       </p>
                     </CardContent>
                   </Card>
