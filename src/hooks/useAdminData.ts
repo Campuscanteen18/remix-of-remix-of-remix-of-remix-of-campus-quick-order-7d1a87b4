@@ -212,6 +212,9 @@ export function useUpdateMenuItem() {
       if (image !== undefined) {
         updateData.image_url = image;
       }
+      if (category !== undefined) {
+        updateData.category_id = category;
+      }
 
       const { data, error } = await supabase
         .from('menu_items')
