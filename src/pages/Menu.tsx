@@ -64,7 +64,7 @@ export default function Menu() {
             <div className="flex items-center gap-3">
               <Logo size="sm" />
               {campus && (
-                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 rounded-full">
+                <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 rounded-full">
                   <MapPin size={12} className="text-primary" />
                   <span className="text-xs font-semibold text-primary uppercase tracking-wide">
                     {campus.code} Canteen
@@ -88,16 +88,6 @@ export default function Menu() {
               )}
 
               <ThemeToggle />
-
-              <Button 
-                variant="ghost" 
-                size="sm"
-                onClick={handleSignOut} 
-                className="gap-1.5 h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
-              >
-                <LogOut size={14} />
-                <span className="hidden sm:inline">Sign Out</span>
-              </Button>
             </div>
           </div>
         </header>
