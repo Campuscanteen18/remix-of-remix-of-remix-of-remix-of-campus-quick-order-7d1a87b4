@@ -19,13 +19,15 @@ import { PageTransition, staggerContainer, staggerItem } from "@/components/Page
 import { useMenuItems } from "@/hooks/useMenuItems";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
+import { useCampus } from "@/context/CampusContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, UtensilsCrossed, LayoutDashboard } from "lucide-react";
+import { LogOut, UtensilsCrossed, LayoutDashboard, MapPin } from "lucide-react";
 
 export default function Menu() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const { totalItems } = useCart();
+  const { campus } = useCampus();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   
@@ -59,7 +61,17 @@ export default function Menu() {
         {/* Header */}
         <header className="sticky top-0 z-40 bg-card/80 backdrop-blur-xl border-b border-border/50 flex-none">
           <div className="flex items-center justify-between px-4 lg:px-6 h-14">
-            <Logo size="sm" />
+            <div className="flex items-center gap-3">
+              <Logo size="sm" />
+              {campus && (
+                <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 rounded-full">
+                  <MapPin size={12} className="text-primary" />
+                  <span className="text-xs font-semibold text-primary uppercase tracking-wide">
+                    {campus.name} Canteen
+                  </span>
+                </div>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               {/* Admin Dashboard Button */}
