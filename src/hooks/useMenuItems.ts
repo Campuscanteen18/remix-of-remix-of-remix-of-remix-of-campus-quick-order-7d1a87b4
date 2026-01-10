@@ -59,7 +59,11 @@ export function useMenuItems(): UseMenuItemsReturn {
   // Filter items based on category, time period, AND availability
   const filteredItems = menuItems.filter(item => {
     const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
-    const matchesTime = !currentPeriod || item.availableTimePeriods.includes(currentPeriod.id);
+    // If no current period (outside all time slots), only show items that have no time restrictions
+    // OR if current period exists, check if item is available in that period
+    const matchesTime = currentPeriod 
+      ? item.availableTimePeriods.includes(currentPeriod.id)
+      : false; // Hide all items when outside operational hours
     const isAvailable = item.isAvailable; // Only show available items
     return matchesCategory && matchesTime && isAvailable;
   });
@@ -67,7 +71,7 @@ export function useMenuItems(): UseMenuItemsReturn {
   // Get popular items for current time period (only available ones)
   const popularItems = menuItems.filter(item => {
     if (!item.isPopular || !item.isAvailable) return false;
-    if (!currentPeriod) return true;
+    if (!currentPeriod) return false; // Hide popular items when outside operational hours
     return item.availableTimePeriods.includes(currentPeriod.id);
   });
 
