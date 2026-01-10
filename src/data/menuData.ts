@@ -2,11 +2,9 @@ import { MenuItem, TimePeriod, Category } from '@/types/canteen';
 
 export const categories: Category[] = [
   { id: 'all', name: 'All Items', icon: '🍽️' },
-  { id: 'main-course', name: 'Main Course', icon: '🍛' },
   { id: 'breakfast', name: 'Breakfast', icon: '🍳' },
   { id: 'lunch', name: 'Lunch', icon: '🍱' },
   { id: 'snacks', name: 'Snacks', icon: '🍪' },
-  { id: 'beverages', name: 'Beverages', icon: '☕' },
 ];
 
 export const timePeriods: TimePeriod[] = [

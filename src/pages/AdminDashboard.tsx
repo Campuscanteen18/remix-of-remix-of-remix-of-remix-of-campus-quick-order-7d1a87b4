@@ -63,11 +63,9 @@ import { PieChart as RechartsPie, Pie, Cell, Legend } from "recharts";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 const ADMIN_CATEGORIES = [
-  { id: "main-course", name: "Main Course" },
   { id: "breakfast", name: "Breakfast" },
   { id: "lunch", name: "Lunch" },
   { id: "snacks", name: "Snacks" },
-  { id: "beverages", name: "Beverages" },
 ] as const;
 
 const TIME_PERIODS = [
