@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { Order, CartItem } from '@/types/canteen';
+import { supabase } from '@/integrations/supabase/client';
 
 interface OrdersContextType {
   orders: Order[];
@@ -60,7 +61,8 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const markOrderCollected = useCallback((orderId: string) => {
+  const markOrderCollected = useCallback(async (orderId: string) => {
+    // Update local state immediately
     setOrders(prev => {
       const updated = prev.map(order =>
         order.id === orderId ? { ...order, status: 'collected' as const, isUsed: true } : order
@@ -68,6 +70,16 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
+
+    // Also update the database to mark is_used = true
+    try {
+      await supabase
+        .from('orders')
+        .update({ is_used: true, status: 'collected' as const })
+        .eq('id', orderId);
+    } catch (error) {
+      console.error('Failed to update order in database:', error);
+    }
   }, []);
 
   const getOrderByQR = useCallback((qrCode: string) => {
