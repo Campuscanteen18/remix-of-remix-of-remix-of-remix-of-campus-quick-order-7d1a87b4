@@ -1389,8 +1389,8 @@ export default function AdminDashboard() {
                                 </div>
                               )}
 
-                              {/* Mark Token Used Button - for old orders not yet collected */}
-                              {order.status !== 'collected' && order.status !== 'cancelled' && !order.is_used && (
+                              {/* Mark Token Used Button - only for READY orders that haven't been scanned at kiosk */}
+                              {order.status === 'ready' && !order.is_used && (
                                 <div className="mt-3 pt-3 border-t border-border/50">
                                   <Button
                                     size="sm"
@@ -1415,14 +1415,6 @@ export default function AdminDashboard() {
                                     )}
                                     Mark Token Used
                                   </Button>
-                                </div>
-                              )}
-                              {order.is_used && (
-                                <div className="mt-3 pt-3 border-t border-border/50">
-                                  <div className="flex items-center gap-2 text-green-600 text-sm">
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    <span className="font-medium">Token Used</span>
-                                  </div>
                                 </div>
                               )}
                             </div>
