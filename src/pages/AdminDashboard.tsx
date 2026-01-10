@@ -24,6 +24,7 @@ import {
   useUpdateOrderStatus,
   useOrderStats,
 } from "@/hooks/useAdminData";
+import { useMonthlyAnalytics } from "@/hooks/useMonthlyAnalytics";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { toast } from "sonner";
 import {
@@ -51,7 +52,10 @@ import {
   Utensils,
   Cookie,
   ChevronDown,
+  Calendar,
+  PieChart,
 } from "lucide-react";
+import { PieChart as RechartsPie, Pie, Cell, Legend } from "recharts";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
 const ADMIN_CATEGORIES = [
@@ -141,6 +145,7 @@ export default function AdminDashboard() {
   const { data: menuItems = [], isLoading: menuLoading } = useAdminMenuItems();
   const { data: orders = [], isLoading: ordersLoading } = useAdminOrders();
   const { data: stats } = useOrderStats();
+  const { data: monthlyStats, isLoading: monthlyLoading } = useMonthlyAnalytics();
   const createMenuItem = useCreateMenuItem();
   const updateMenuItem = useUpdateMenuItem();
   const deleteMenuItem = useDeleteMenuItem();
@@ -570,6 +575,187 @@ export default function AdminDashboard() {
                   </div>
                 </CardContent>
               </Card>
+            </div>
+
+            {/* Monthly Analytics Section */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Calendar className="h-5 w-5 text-primary" />
+                <h3 className="text-lg font-semibold">
+                  {monthlyStats?.monthName} {monthlyStats?.year} Analytics
+                </h3>
+              </div>
+
+              {monthlyLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {/* Monthly Stats Cards */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="text-center">
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Total Orders</p>
+                          <p className="text-lg sm:text-2xl font-bold text-primary">
+                            {monthlyStats?.totalOrders || 0}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="text-center">
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Total Revenue</p>
+                          <p className="text-lg sm:text-2xl font-bold text-secondary">
+                            ₹{(monthlyStats?.totalRevenue || 0).toLocaleString()}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="text-center">
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Avg Order</p>
+                          <p className="text-lg sm:text-2xl font-bold">
+                            ₹{monthlyStats?.avgOrderValue || 0}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid lg:grid-cols-2 gap-6">
+                    {/* Time Period Breakdown */}
+                    <Card className="rounded-2xl card-shadow">
+                      <CardHeader>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          <PieChart className="h-5 w-5" />
+                          Revenue by Time Period
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {monthlyStats?.periodBreakdown && monthlyStats.periodBreakdown.some(p => p.orders > 0) ? (
+                          <>
+                            <div className="h-[200px]">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <RechartsPie>
+                                  <Pie
+                                    data={monthlyStats.periodBreakdown.filter(p => p.revenue > 0)}
+                                    dataKey="revenue"
+                                    nameKey="period"
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={40}
+                                    outerRadius={80}
+                                    paddingAngle={2}
+                                  >
+                                    {monthlyStats.periodBreakdown.filter(p => p.revenue > 0).map((_, index) => (
+                                      <Cell
+                                        key={`cell-${index}`}
+                                        fill={[
+                                          'hsl(45, 93%, 47%)',   // Breakfast - amber
+                                          'hsl(217, 91%, 60%)',  // Lunch - blue
+                                          'hsl(270, 50%, 60%)',  // Snacks - purple
+                                          'hsl(24, 95%, 53%)',   // Dinner - orange
+                                        ][index % 4]}
+                                      />
+                                    ))}
+                                  </Pie>
+                                  <Legend />
+                                  <Tooltip
+                                    formatter={(value: number) => `₹${value.toLocaleString()}`}
+                                    contentStyle={{
+                                      background: "hsl(var(--card))",
+                                      border: "1px solid hsl(var(--border))",
+                                      borderRadius: "12px",
+                                    }}
+                                  />
+                                </RechartsPie>
+                              </ResponsiveContainer>
+                            </div>
+                            <div className="space-y-2 mt-4">
+                              {monthlyStats.periodBreakdown.map((period, idx) => {
+                                const colors = ['bg-amber-500', 'bg-blue-500', 'bg-purple-500', 'bg-orange-500'];
+                                const icons = [Sun, Utensils, Cookie, Utensils];
+                                const Icon = icons[idx];
+                                return (
+                                  <div key={period.period} className="flex items-center justify-between p-2 rounded-lg bg-muted/50">
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-3 h-3 rounded-full ${colors[idx]}`} />
+                                      <Icon className="h-4 w-4 text-muted-foreground" />
+                                      <span className="font-medium text-sm">{period.period}</span>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-sm font-bold">₹{period.revenue.toLocaleString()}</p>
+                                      <p className="text-xs text-muted-foreground">{period.orders} orders</p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </>
+                        ) : (
+                          <p className="text-center py-8 text-muted-foreground">No order data this month</p>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Daily Trends Chart */}
+                    <Card className="rounded-2xl card-shadow">
+                      <CardHeader>
+                        <CardTitle className="text-lg">Daily Trends</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {monthlyStats?.dailyTrends && monthlyStats.dailyTrends.some(d => d.orders > 0) ? (
+                          <div className="h-[300px]">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={monthlyStats.dailyTrends}>
+                                <defs>
+                                  <linearGradient id="colorMonthlyRevenue" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="hsl(var(--secondary))" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="hsl(var(--secondary))" stopOpacity={0} />
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                <XAxis 
+                                  dataKey="date" 
+                                  stroke="hsl(var(--muted-foreground))" 
+                                  fontSize={10}
+                                  interval="preserveStartEnd"
+                                />
+                                <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                                <Tooltip
+                                  formatter={(value: number, name: string) => [
+                                    name === 'revenue' ? `₹${value.toLocaleString()}` : value,
+                                    name === 'revenue' ? 'Revenue' : 'Orders'
+                                  ]}
+                                  labelFormatter={(label) => `Day ${label}`}
+                                  contentStyle={{
+                                    background: "hsl(var(--card))",
+                                    border: "1px solid hsl(var(--border))",
+                                    borderRadius: "12px",
+                                  }}
+                                />
+                                <Area
+                                  type="monotone"
+                                  dataKey="revenue"
+                                  stroke="hsl(var(--secondary))"
+                                  strokeWidth={2}
+                                  fill="url(#colorMonthlyRevenue)"
+                                />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        ) : (
+                          <p className="text-center py-8 text-muted-foreground">No trend data available</p>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Low Stock Alerts */}
