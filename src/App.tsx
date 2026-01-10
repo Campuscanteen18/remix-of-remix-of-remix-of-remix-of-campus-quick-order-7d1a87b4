@@ -8,7 +8,7 @@ import { AuthProvider } from "@/context/AuthContext";
 import { AdminAuthProvider } from "@/context/AdminAuthContext";
 import { PrinterProvider } from "@/context/PrinterContext";
 import { ThemeProvider } from "@/context/ThemeContext";
-import { FavoritesProvider } from "@/context/FavoritesContext";
+
 import { MenuProvider } from "@/context/MenuContext";
 import { OrdersProvider } from "@/context/OrdersContext";
 import { CampusProvider } from "@/context/CampusContext";
@@ -26,7 +26,7 @@ import DedicatedScanner from "./pages/DedicatedScanner";
 import MyOrders from "./pages/MyOrders";
 import Profile from "./pages/Profile";
 import OrderDetails from "./pages/OrderDetails";
-import Favorites from "./pages/Favorites";
+
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -48,7 +48,6 @@ const App = () => (
             <MenuProvider>
               <OrdersProvider>
                 <CartProvider>
-                  <FavoritesProvider>
                     <PrinterProvider>
                       <TooltipProvider>
                         <Toaster />
@@ -98,11 +97,6 @@ const App = () => (
                                 <Profile />
                               </CampusGate>
                             } />
-                            <Route path="/favorites" element={
-                              <CampusGate>
-                                <Favorites />
-                              </CampusGate>
-                            } />
                             <Route 
                               path="/admin" 
                               element={
@@ -128,7 +122,6 @@ const App = () => (
                         </BrowserRouter>
                       </TooltipProvider>
                     </PrinterProvider>
-                  </FavoritesProvider>
                 </CartProvider>
               </OrdersProvider>
             </MenuProvider>
