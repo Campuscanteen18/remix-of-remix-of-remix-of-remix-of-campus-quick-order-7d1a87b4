@@ -31,7 +31,7 @@ export default function Auth() {
   const [signupName, setSignupName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  // Handle logout parameter - logout first before showing auth page
+  // Handle logout parameter
   useEffect(() => {
     const shouldLogout = searchParams.get('logout') === 'true';
     if (!shouldLogout) return;
@@ -42,7 +42,6 @@ export default function Auth() {
       setIsLoggingOut(true);
       await supabase.auth.signOut();
 
-      // Ensure session is actually cleared before continuing
       const { data: { session } } = await supabase.auth.getSession();
       if (cancelled) return;
 
@@ -57,7 +56,7 @@ export default function Auth() {
     };
   }, [searchParams, navigate]);
 
-  // Check for existing session on mount (only if not logging out)
+  // Check for existing session
   useEffect(() => {
     if (isLoggingOut) return;
 
@@ -83,12 +82,11 @@ export default function Auth() {
     checkSession();
   }, [navigate, isLoggingOut]);
 
-  // Listen for auth state changes (sync callback; defer DB lookup)
+  // Auth state listener
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
         setTimeout(async () => {
-          // Fetch role and user's home campus
           const [rolesResult, profileResult] = await Promise.all([
             supabase
               .from('user_roles')
@@ -106,10 +104,8 @@ export default function Auth() {
           const userHomeCampusId = profileResult.data?.campus_id || rolesResult.data?.campus_id;
           const currentCampusId = campus?.id;
 
-          // Admin/Kiosk: Strict campus check - must be at their home campus
           if (userRole === 'admin' || userRole === 'kiosk') {
             if (currentCampusId && userHomeCampusId && currentCampusId !== userHomeCampusId) {
-              // Admin at wrong campus - kick them out
               toast({
                 title: 'Access Denied',
                 description: 'You can only access the admin dashboard at your home campus.',
@@ -120,7 +116,6 @@ export default function Auth() {
             }
             navigate(userRole === 'admin' ? '/admin' : '/kiosk-scanner');
           } else {
-            // Students: Allow roaming - show welcome toast if visiting
             if (currentCampusId && userHomeCampusId && currentCampusId !== userHomeCampusId) {
               toast({
                 title: 'Welcome, Visitor! 🎉',
@@ -222,7 +217,6 @@ export default function Auth() {
           title: 'Welcome back!',
           description: 'Successfully logged in.',
         });
-        // Navigation happens via onAuthStateChange
       }
     } catch (error) {
       toast({
@@ -284,7 +278,6 @@ export default function Auth() {
       }
 
       if (data.user) {
-        // Check if email confirmation is required
         if (data.user.identities?.length === 0) {
           toast({
             title: 'Email Already Exists',
@@ -292,14 +285,11 @@ export default function Auth() {
             variant: 'destructive',
           });
         } else if (data.session) {
-          // User is auto-confirmed and logged in
           toast({
             title: 'Account Created!',
             description: 'Welcome to Campus Canteen.',
           });
-          // Navigation happens via onAuthStateChange
         } else {
-          // Email confirmation required
           toast({
             title: 'Check Your Email',
             description: 'We sent you a confirmation link. Please check your inbox.',
@@ -318,41 +308,56 @@ export default function Auth() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-secondary/5">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      {/* Subtle background */}
+      <div className="fixed inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-secondary/[0.02]" />
+      
+      <div className="relative w-full max-w-[380px]">
         {/* Campus Badge */}
         {campus && (
-          <div className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-full bg-primary/10 text-primary w-fit mx-auto">
-            <Building2 size={16} />
-            <span className="text-sm font-semibold">{campus.name}</span>
+          <div className="flex items-center justify-center gap-2 mb-5 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground w-fit mx-auto">
+            <Building2 size={14} />
+            <span className="text-xs font-medium">{campus.name}</span>
           </div>
         )}
         
         {/* Logo Section */}
         <div className="text-center mb-6">
-          <div className="flex justify-center mb-3">
+          <div className="flex justify-center mb-4">
             <Logo size="lg" showText={false} />
           </div>
-          <h1 className="text-xl font-bold text-foreground">{campus?.name || 'Campus'} Canteen</h1>
-          <p className="text-sm text-muted-foreground">Sign in to order your favorite food</p>
+          <h1 className="font-display text-xl font-semibold text-foreground">
+            {campus?.name || 'Campus'} Canteen
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Sign in to order your favorite food
+          </p>
         </div>
 
         {/* Auth Card */}
-        <div className="bg-card rounded-2xl shadow-xl border border-border p-5">
+        <div className="bg-card rounded-2xl shadow-soft border border-border p-5">
           <Tabs defaultValue="login" className="w-full" onValueChange={clearErrors}>
             <TabsList className="grid w-full grid-cols-2 mb-5 h-10 rounded-xl bg-muted p-1">
-              <TabsTrigger value="login" className="rounded-lg text-sm font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
+              <TabsTrigger 
+                value="login" 
+                className="rounded-lg text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm"
+              >
                 Login
               </TabsTrigger>
-              <TabsTrigger value="signup" className="rounded-lg text-sm font-semibold data-[state=active]:bg-card data-[state=active]:shadow-sm">
+              <TabsTrigger 
+                value="signup" 
+                className="rounded-lg text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm"
+              >
                 Sign Up
               </TabsTrigger>
             </TabsList>
 
             <TabsContent value="login" className="mt-0">
-              <form onSubmit={handleLogin} className="space-y-3">
+              <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="login-email" className="text-xs font-medium">Email</Label>
+                  <Label htmlFor="login-email" className="text-xs font-medium text-muted-foreground">
+                    Email
+                  </Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -361,7 +366,7 @@ export default function Auth() {
                       placeholder="you@college.edu"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
-                      className={`h-10 pl-10 text-sm rounded-lg ${errors.loginEmail ? 'border-destructive' : ''}`}
+                      className={`h-11 pl-10 rounded-xl ${errors.loginEmail ? 'border-destructive' : ''}`}
                       required
                       disabled={isLoading}
                       autoComplete="email"
@@ -373,7 +378,9 @@ export default function Auth() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="login-password" className="text-xs font-medium">Password</Label>
+                  <Label htmlFor="login-password" className="text-xs font-medium text-muted-foreground">
+                    Password
+                  </Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -382,7 +389,7 @@ export default function Auth() {
                       placeholder="••••••••"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
-                      className={`h-10 pl-10 text-sm rounded-lg ${errors.loginPassword ? 'border-destructive' : ''}`}
+                      className={`h-11 pl-10 rounded-xl ${errors.loginPassword ? 'border-destructive' : ''}`}
                       required
                       disabled={isLoading}
                       autoComplete="current-password"
@@ -393,7 +400,11 @@ export default function Auth() {
                   )}
                 </div>
 
-                <Button type="submit" className="w-full h-10 text-sm font-bold rounded-lg gap-2 mt-4" disabled={isLoading}>
+                <Button 
+                  type="submit" 
+                  className="w-full h-11 font-semibold rounded-xl gap-2 mt-2" 
+                  disabled={isLoading}
+                >
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -410,9 +421,11 @@ export default function Auth() {
             </TabsContent>
 
             <TabsContent value="signup" className="mt-0">
-              <form onSubmit={handleSignup} className="space-y-3">
+              <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="signup-name" className="text-xs font-medium">Full Name</Label>
+                  <Label htmlFor="signup-name" className="text-xs font-medium text-muted-foreground">
+                    Full Name
+                  </Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -421,7 +434,7 @@ export default function Auth() {
                       placeholder="John Doe"
                       value={signupName}
                       onChange={(e) => setSignupName(e.target.value)}
-                      className={`h-10 pl-10 text-sm rounded-lg ${errors.signupName ? 'border-destructive' : ''}`}
+                      className={`h-11 pl-10 rounded-xl ${errors.signupName ? 'border-destructive' : ''}`}
                       required
                       disabled={isLoading}
                       autoComplete="name"
@@ -433,7 +446,9 @@ export default function Auth() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="signup-email" className="text-xs font-medium">Email</Label>
+                  <Label htmlFor="signup-email" className="text-xs font-medium text-muted-foreground">
+                    Email
+                  </Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -442,7 +457,7 @@ export default function Auth() {
                       placeholder="you@college.edu"
                       value={signupEmail}
                       onChange={(e) => setSignupEmail(e.target.value)}
-                      className={`h-10 pl-10 text-sm rounded-lg ${errors.signupEmail ? 'border-destructive' : ''}`}
+                      className={`h-11 pl-10 rounded-xl ${errors.signupEmail ? 'border-destructive' : ''}`}
                       required
                       disabled={isLoading}
                       autoComplete="email"
@@ -454,7 +469,9 @@ export default function Auth() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="signup-password" className="text-xs font-medium">Password</Label>
+                  <Label htmlFor="signup-password" className="text-xs font-medium text-muted-foreground">
+                    Password
+                  </Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -463,7 +480,7 @@ export default function Auth() {
                       placeholder="••••••••"
                       value={signupPassword}
                       onChange={(e) => setSignupPassword(e.target.value)}
-                      className={`h-10 pl-10 text-sm rounded-lg ${errors.signupPassword ? 'border-destructive' : ''}`}
+                      className={`h-11 pl-10 rounded-xl ${errors.signupPassword ? 'border-destructive' : ''}`}
                       required
                       disabled={isLoading}
                       autoComplete="new-password"
@@ -474,7 +491,11 @@ export default function Auth() {
                   )}
                 </div>
 
-                <Button type="submit" className="w-full h-10 text-sm font-bold rounded-lg gap-2 mt-4" disabled={isLoading}>
+                <Button 
+                  type="submit" 
+                  className="w-full h-11 font-semibold rounded-xl gap-2 mt-2" 
+                  disabled={isLoading}
+                >
                   {isLoading ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin" />
@@ -492,15 +513,10 @@ export default function Auth() {
           </Tabs>
         </div>
 
-        {/* Switch Campus / Back */}
-        <div className="text-center text-xs text-muted-foreground mt-4 space-y-2">
-          <button 
-            onClick={() => navigate('/select-campus')} 
-            className="hover:text-primary transition-colors"
-          >
-            Switch campus
-          </button>
-        </div>
+        {/* Footer */}
+        <p className="text-center text-xs text-muted-foreground mt-5">
+          By continuing, you agree to our Terms of Service
+        </p>
       </div>
     </div>
   );

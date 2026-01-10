@@ -1,8 +1,9 @@
-import { ShoppingBag, Minus, Plus, Trash2, Package } from 'lucide-react';
+import { ShoppingBag, Minus, Plus, Trash2, Package, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '@/context/CartContext';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 
 export function CartPanel() {
   const navigate = useNavigate();
@@ -11,18 +12,23 @@ export function CartPanel() {
   if (cart.length === 0) {
     return (
       <div className="flex flex-col h-full">
-        <div className="p-4 bg-secondary text-secondary-foreground rounded-t-none lg:rounded-t-none">
-          <div className="flex items-center gap-2">
-            <ShoppingBag className="w-5 h-5" />
-            <h2 className="font-bold text-lg">My Order</h2>
+        <div className="p-4 border-b border-border">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-lg bg-secondary/10 flex items-center justify-center">
+              <ShoppingBag className="w-4 h-4 text-secondary" />
+            </div>
+            <div>
+              <h2 className="font-display font-semibold text-base">Your Order</h2>
+              <p className="text-xs text-muted-foreground">0 items</p>
+            </div>
           </div>
         </div>
         <div className="flex-1 flex flex-col items-center justify-center py-12 text-center px-6">
-          <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center mb-4">
-            <Package className="w-8 h-8 text-muted-foreground" />
+          <div className="w-14 h-14 rounded-2xl bg-muted flex items-center justify-center mb-4">
+            <Package className="w-6 h-6 text-muted-foreground" />
           </div>
-          <h3 className="font-semibold text-lg text-foreground">Your cart is empty</h3>
-          <p className="text-sm text-muted-foreground mt-1">Add items from the menu to get started</p>
+          <h3 className="font-display font-semibold text-base text-foreground">Cart is empty</h3>
+          <p className="text-sm text-muted-foreground mt-1">Add items from the menu</p>
         </div>
       </div>
     );
@@ -30,52 +36,57 @@ export function CartPanel() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header - Green */}
-      <div className="p-4 bg-secondary text-secondary-foreground">
-        <div className="flex items-center gap-2">
-          <ShoppingBag className="w-5 h-5" />
-          <h2 className="font-bold text-lg">My Order ({totalItems} items)</h2>
+      {/* Header */}
+      <div className="p-4 border-b border-border">
+        <div className="flex items-center gap-2.5">
+          <div className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center">
+            <ShoppingBag className="w-4 h-4 text-secondary-foreground" />
+          </div>
+          <div>
+            <h2 className="font-display font-semibold text-base">Your Order</h2>
+            <p className="text-xs text-muted-foreground">{totalItems} items</p>
+          </div>
         </div>
       </div>
 
       {/* Items */}
-      <ScrollArea className="flex-1 p-4">
-        <div className="space-y-4">
+      <ScrollArea className="flex-1">
+        <div className="p-4 space-y-3">
           {cart.map((item) => (
             <div
               key={item.id}
-              className="flex gap-3"
+              className="flex gap-3 p-2.5 rounded-xl bg-muted/30 border border-border/50"
             >
               <img
                 src={item.image}
                 alt={item.name}
-                className="w-16 h-16 rounded-xl object-cover flex-shrink-0"
+                className="w-14 h-14 rounded-lg object-cover flex-shrink-0"
               />
               <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-sm truncate">{item.name}</h4>
-                <p className="text-primary font-bold text-sm">₹{item.price}</p>
+                <h4 className="font-medium text-sm truncate">{item.name}</h4>
+                <p className="text-primary font-bold text-sm mt-0.5">₹{item.price}</p>
                 
-                <div className="flex items-center gap-2 mt-1.5">
+                <div className="flex items-center gap-2 mt-2">
                   <button
                     onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                    className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors"
+                    className="w-6 h-6 rounded-md bg-background border border-border flex items-center justify-center hover:bg-muted transition-colors"
                   >
-                    <Minus size={14} />
+                    <Minus size={12} />
                   </button>
-                  <span className="font-bold text-sm min-w-[1.5rem] text-center">
+                  <span className="font-bold text-sm min-w-[1.25rem] text-center tabular-nums">
                     {item.quantity}
                   </span>
                   <button
                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    className="w-7 h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-105 transition-transform"
+                    className="w-6 h-6 rounded-md bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
                   >
-                    <Plus size={14} />
+                    <Plus size={12} />
                   </button>
                   <button
                     onClick={() => removeFromCart(item.id)}
-                    className="ml-auto w-7 h-7 rounded-full bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
+                    className="ml-auto w-6 h-6 rounded-md bg-destructive/10 text-destructive flex items-center justify-center hover:bg-destructive hover:text-destructive-foreground transition-colors"
                   >
-                    <Trash2 size={14} />
+                    <Trash2 size={12} />
                   </button>
                 </div>
               </div>
@@ -85,16 +96,18 @@ export function CartPanel() {
       </ScrollArea>
 
       {/* Footer */}
-      <div className="p-4 border-t border-border">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-foreground font-medium">Total</span>
-          <span className="text-2xl font-bold text-foreground">₹{totalPrice}</span>
+      <div className="p-4 border-t border-border bg-muted/20">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm text-muted-foreground">Subtotal</span>
+          <span className="text-lg font-bold text-foreground">₹{totalPrice}</span>
         </div>
+        <Separator className="mb-3" />
         <Button 
-          className="w-full h-12 text-base font-bold rounded-xl bg-secondary hover:bg-secondary/90 text-secondary-foreground"
+          className="w-full h-11 font-semibold rounded-xl bg-secondary hover:bg-secondary/90 text-secondary-foreground gap-2"
           onClick={() => navigate('/checkout')}
         >
-          Proceed to Pay
+          Checkout
+          <ArrowRight size={16} />
         </Button>
       </div>
     </div>

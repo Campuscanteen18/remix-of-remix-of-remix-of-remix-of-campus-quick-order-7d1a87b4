@@ -20,29 +20,24 @@ export function MenuItemCard({ item }: MenuItemCardProps) {
       whileTap={{ scale: 0.98 }}
       className={cn(
         "group relative bg-card rounded-2xl overflow-hidden transition-all duration-200",
-        "border-2",
-        quantity > 0 ? "border-primary shadow-lg" : "border-transparent card-shadow",
-        !item.isAvailable && "opacity-60",
+        quantity > 0 
+          ? "ring-2 ring-primary shadow-medium" 
+          : "shadow-soft hover:shadow-medium",
+        !item.isAvailable && "opacity-50 pointer-events-none",
       )}
     >
       {/* Image Section */}
       <div className="relative aspect-[4/3] overflow-hidden bg-muted">
         {/* Veg/Non-veg indicator */}
-        <div className="absolute top-2 left-2 z-10">
-          <div className="bg-white p-[2px] rounded-[2px] shadow-sm">
-            <div
-              className={cn(
-                "w-4 h-4 border flex items-center justify-center",
-                item.isVeg ? "border-green-600" : "border-red-600",
-              )}
-            >
-              <div
-                className={cn(
-                  "w-2.5 h-2.5 rounded-full",
-                  item.isVeg ? "bg-green-600" : "bg-red-600",
-                )}
-              />
-            </div>
+        <div className="absolute top-2.5 left-2.5 z-10">
+          <div className={cn(
+            "w-5 h-5 rounded-sm border-[1.5px] flex items-center justify-center bg-white/95 backdrop-blur-sm",
+            item.isVeg ? "border-green-600" : "border-red-600",
+          )}>
+            <div className={cn(
+              "w-2.5 h-2.5 rounded-full",
+              item.isVeg ? "bg-green-600" : "bg-red-600",
+            )} />
           </div>
         </div>
 
@@ -56,49 +51,58 @@ export function MenuItemCard({ item }: MenuItemCardProps) {
         />
 
         {!item.isAvailable && (
-          <div className="absolute inset-0 bg-background/80 flex items-center justify-center backdrop-blur-sm">
-            <span className="px-4 py-2 rounded-full bg-muted text-muted-foreground font-medium text-sm">
-              Not Available
+          <div className="absolute inset-0 bg-background/70 flex items-center justify-center backdrop-blur-sm">
+            <span className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground font-medium text-xs">
+              Sold Out
             </span>
           </div>
         )}
       </div>
 
       {/* Content Section */}
-      <div className="p-2 lg:p-3">
-        <h3 className="font-semibold text-xs lg:text-sm text-foreground line-clamp-1 leading-tight">
+      <div className="p-3">
+        <h3 className="font-display font-semibold text-sm text-foreground line-clamp-1 leading-snug">
           {item.name}
         </h3>
-        <p className="text-[10px] lg:text-xs text-muted-foreground line-clamp-1 mt-0.5">{item.description}</p>
+        <p className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+          {item.description}
+        </p>
 
-        <div className="flex items-center justify-between mt-2 gap-1">
-          <span className="text-xs lg:text-sm font-bold text-foreground shrink-0">₹{item.price}</span>
+        <div className="flex items-center justify-between mt-2.5 gap-2">
+          <span className="text-sm font-bold text-foreground">
+            ₹{item.price}
+          </span>
 
-          {item.isAvailable &&
-            (quantity > 0 ? (
-              <div className="flex items-center gap-1 shrink-0">
+          {item.isAvailable && (
+            quantity > 0 ? (
+              <div className="flex items-center gap-1.5">
                 <button
                   onClick={() => updateQuantity(item.id, quantity - 1)}
-                  className="w-6 h-6 lg:w-7 lg:h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors shrink-0"
+                  className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center hover:bg-muted/70 transition-colors active:scale-95"
                 >
-                  <Minus size={12} className="lg:hidden" />
-                  <Minus size={14} className="hidden lg:block" />
+                  <Minus size={14} />
                 </button>
-                <span className="font-bold min-w-[1rem] text-center text-xs lg:text-sm">{quantity}</span>
+                <span className="font-bold text-sm min-w-[1.25rem] text-center tabular-nums">
+                  {quantity}
+                </span>
                 <button
                   onClick={() => addToCart(item)}
-                  className="w-6 h-6 lg:w-7 lg:h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-105 transition-transform shadow-md shrink-0"
+                  className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors active:scale-95"
                 >
-                  <Plus size={12} className="lg:hidden" />
-                  <Plus size={14} className="hidden lg:block" />
+                  <Plus size={14} />
                 </button>
               </div>
             ) : (
-              <Button size="icon" className="w-7 h-7 lg:w-8 lg:h-8 rounded-full shadow-md shrink-0" onClick={() => addToCart(item)}>
-                <Plus size={14} className="lg:hidden" />
-                <Plus size={16} className="hidden lg:block" />
+              <Button 
+                size="sm" 
+                className="h-7 px-3 rounded-lg text-xs font-semibold shadow-none"
+                onClick={() => addToCart(item)}
+              >
+                <Plus size={14} className="mr-1" />
+                Add
               </Button>
-            ))}
+            )
+          )}
         </div>
       </div>
     </motion.div>

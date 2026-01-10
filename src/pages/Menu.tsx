@@ -20,7 +20,7 @@ import { useMenuItems } from "@/hooks/useMenuItems";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, User, UtensilsCrossed, LayoutDashboard } from "lucide-react";
+import { LogOut, UtensilsCrossed, LayoutDashboard } from "lucide-react";
 
 export default function Menu() {
   const navigate = useNavigate();
@@ -41,11 +41,8 @@ export default function Menu() {
   } = useMenuItems();
 
   const handleSignOut = () => {
-    // Force a clean sign-out even if a session is still cached briefly
     navigate("/auth?logout=true");
   };
-
-  const userName = user?.fullName || "Guest User";
 
   // Filter items by search query
   const searchedItems = searchQuery
@@ -60,29 +57,33 @@ export default function Menu() {
     <PageTransition>
       <div className="h-screen bg-background flex flex-col overflow-hidden">
         {/* Header */}
-        <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-md border-b border-border flex-none">
-          <div className="flex items-center justify-between px-4 lg:px-6 h-16">
+        <header className="sticky top-0 z-40 bg-card/80 backdrop-blur-xl border-b border-border/50 flex-none">
+          <div className="flex items-center justify-between px-4 lg:px-6 h-14">
             <Logo size="sm" />
 
             <div className="flex items-center gap-2">
-              {/* Admin Dashboard Button - only for admins */}
+              {/* Admin Dashboard Button */}
               {user?.role === 'admin' && (
                 <Button
                   variant="outline"
                   size="sm"
-                  className="rounded-full gap-2"
+                  className="rounded-lg gap-1.5 h-8 text-xs font-medium"
                   onClick={() => navigate("/admin")}
                 >
-                  <LayoutDashboard size={16} />
+                  <LayoutDashboard size={14} />
                   <span className="hidden sm:inline">Admin</span>
                 </Button>
               )}
 
-              {/* Theme Toggle */}
               <ThemeToggle />
 
-              <Button variant="outline" onClick={handleSignOut} className="gap-1.5 h-9 px-4 rounded-full">
-                <LogOut size={16} />
+              <Button 
+                variant="ghost" 
+                size="sm"
+                onClick={handleSignOut} 
+                className="gap-1.5 h-8 px-3 text-xs font-medium text-muted-foreground hover:text-foreground"
+              >
+                <LogOut size={14} />
                 <span className="hidden sm:inline">Sign Out</span>
               </Button>
             </div>
@@ -99,8 +100,8 @@ export default function Menu() {
           />
 
           {/* Menu Grid */}
-          <main className="flex-1 overflow-y-auto pb-24 lg:pb-6 scroll-smooth">
-            <div className="p-4 lg:p-6">
+          <main className="flex-1 overflow-y-auto pb-24 lg:pb-6">
+            <div className="p-4 lg:p-5">
               <HeroBanner />
 
               {/* Search Bar */}
@@ -112,8 +113,10 @@ export default function Menu() {
                 />
               </div>
 
-              {/* Time Period Banner - only show for "all" category to avoid confusion */}
-              {currentPeriod && !searchQuery && selectedCategory === "all" && <TimePeriodBanner period={currentPeriod} />}
+              {/* Time Period Banner */}
+              {currentPeriod && !searchQuery && selectedCategory === "all" && (
+                <TimePeriodBanner period={currentPeriod} />
+              )}
 
               {/* Popular Now Section */}
               {!isLoading && !error && popularItems.length > 0 && selectedCategory === "all" && !searchQuery && (
@@ -122,17 +125,19 @@ export default function Menu() {
 
               {/* Section Header */}
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl lg:text-2xl font-bold lowercase">
+                <h2 className="font-display text-lg lg:text-xl font-semibold text-foreground">
                   {searchQuery
                     ? `Results for "${searchQuery}"`
                     : selectedCategory === "all"
                       ? currentPeriod
                         ? `${currentPeriod.name} Menu`
-                        : "all-items"
-                      : selectedCategory}
+                        : "All Items"
+                      : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
                 </h2>
                 {!isLoading && !error && (
-                  <span className="text-sm text-muted-foreground">{searchedItems.length} items</span>
+                  <span className="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded-md">
+                    {searchedItems.length} items
+                  </span>
                 )}
               </div>
 
@@ -141,10 +146,7 @@ export default function Menu() {
 
               {/* Error State */}
               {error && !isLoading && (
-                <ErrorState
-                  message={error}
-                  onRetry={refetch}
-                />
+                <ErrorState message={error} onRetry={refetch} />
               )}
 
               {/* Menu Grid */}
@@ -153,7 +155,7 @@ export default function Menu() {
                   variants={staggerContainer}
                   initial="initial"
                   animate="animate"
-                  className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-3"
+                  className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3"
                 >
                   {searchedItems.map((item) => (
                     <motion.div key={item.id} variants={staggerItem}>
@@ -171,7 +173,7 @@ export default function Menu() {
                   description={
                     searchQuery
                       ? `No items match "${searchQuery}". Try a different search term.`
-                      : "No items available in this category right now. Try another category or check back later."
+                      : "No items available in this category right now."
                   }
                   action={{
                     label: searchQuery ? "Clear Search" : "View All Items",
@@ -185,9 +187,9 @@ export default function Menu() {
             </div>
           </main>
 
-          {/* Cart Panel - Desktop (only when items in cart) */}
+          {/* Cart Panel - Desktop */}
           {totalItems > 0 && (
-            <aside className="hidden lg:block w-[360px] bg-card border-l border-border h-full overflow-y-auto">
+            <aside className="hidden lg:block w-[340px] bg-card border-l border-border h-full overflow-y-auto">
               <CartPanel />
             </aside>
           )}

@@ -3,28 +3,30 @@ import heroBannerImg from '@/assets/hero-banner.jpg';
 
 export function HeroBanner() {
   return (
-    <div className="relative overflow-hidden rounded-2xl mb-4 lg:mb-6">
+    <div className="relative overflow-hidden rounded-2xl mb-5">
       {/* Background Image */}
       <div className="absolute inset-0">
         <img 
           src={heroBannerImg} 
-          alt="Delicious food" 
+          alt="Fresh food" 
           className="w-full h-full object-cover"
         />
-        <div className="absolute inset-0 bg-gradient-to-r from-primary/90 via-primary/70 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-foreground/90 via-foreground/60 to-transparent" />
       </div>
       
       {/* Content */}
-      <div className="relative z-10 p-4 md:p-6 text-primary-foreground">
-        <div className="flex items-center gap-2 mb-1">
-          <Sparkles size={14} className="text-yellow-300" />
-          <span className="text-xs font-medium opacity-90">Quick & Easy</span>
+      <div className="relative z-10 p-5 md:p-6 text-background">
+        <div className="flex items-center gap-1.5 mb-2">
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-canteen-warning/90 text-canteen-dark">
+            <Sparkles size={12} />
+            <span className="text-[10px] font-bold uppercase tracking-wide">Quick Order</span>
+          </div>
         </div>
-        <h2 className="text-lg md:text-2xl font-bold mb-0.5">
-          Pre-order & Skip the Queue!
+        <h2 className="font-display text-xl md:text-2xl font-bold mb-1 tracking-tight">
+          Skip the Queue
         </h2>
-        <p className="text-xs opacity-90 max-w-md">
-          Order now, pay online & collect with QR code
+        <p className="text-sm text-background/80 max-w-xs leading-relaxed">
+          Order now, pay online & pick up with your QR code
         </p>
       </div>
     </div>
