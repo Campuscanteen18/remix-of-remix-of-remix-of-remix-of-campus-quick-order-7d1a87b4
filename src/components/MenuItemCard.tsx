@@ -1,7 +1,6 @@
-import { Plus, Minus, Heart } from "lucide-react";
+import { Plus, Minus } from "lucide-react";
 import { MenuItem } from "@/types/canteen";
 import { useCart } from "@/context/CartContext";
-import { useFavorites } from "@/context/FavoritesContext";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
@@ -12,10 +11,8 @@ interface MenuItemCardProps {
 
 export function MenuItemCard({ item }: MenuItemCardProps) {
   const { cart, addToCart, updateQuantity } = useCart();
-  const { isFavorite, toggleFavorite } = useFavorites();
   const cartItem = cart.find((i) => i.id === item.id);
   const quantity = cartItem?.quantity || 0;
-  const favorite = isFavorite(item.id);
 
   return (
     <motion.div
@@ -48,22 +45,6 @@ export function MenuItemCard({ item }: MenuItemCardProps) {
             </div>
           </div>
         </div>
-
-        {/* Favorite Button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleFavorite(item.id);
-          }}
-          className={cn(
-            "absolute top-2 right-2 z-10 w-7 h-7 rounded-full flex items-center justify-center transition-all",
-            favorite
-              ? "bg-red-500 text-white"
-              : "bg-white/80 text-muted-foreground hover:bg-white hover:text-red-500"
-          )}
-        >
-          <Heart size={14} fill={favorite ? "currentColor" : "none"} />
-        </button>
 
         <img
           src={item.image || '/placeholder.svg'}
