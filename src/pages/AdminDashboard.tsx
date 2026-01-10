@@ -74,6 +74,16 @@ const TIME_PERIODS = [
   { id: "snacks", name: "Snacks (3-5 PM)" },
 ];
 
+const AVAILABLE_DAYS = [
+  { id: "mon-sat", name: "Mon-Sat", days: ["mon", "tue", "wed", "thu", "fri", "sat"] },
+  { id: "mon", name: "Mon" },
+  { id: "tue", name: "Tue" },
+  { id: "wed", name: "Wed" },
+  { id: "thu", name: "Thu" },
+  { id: "fri", name: "Fri" },
+  { id: "sat", name: "Sat" },
+] as const;
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const { logout: pinLogout } = useAdminAuth();
@@ -140,6 +150,7 @@ export default function AdminDashboard() {
     is_popular: false,
     is_available: true,
     available_time_periods: [] as string[],
+    available_days: ["mon", "tue", "wed", "thu", "fri", "sat"] as string[],
   });
 
   // Hooks
@@ -182,6 +193,7 @@ export default function AdminDashboard() {
       is_popular: false,
       is_available: true,
       available_time_periods: [],
+      available_days: ["mon", "tue", "wed", "thu", "fri", "sat"],
     });
     setEditingItem(null);
     setImagePreview(null);
@@ -254,6 +266,7 @@ export default function AdminDashboard() {
           is_popular: formData.is_popular,
           is_available: formData.is_available,
           available_time_periods: formData.available_time_periods,
+          available_days: formData.available_days,
         });
         toast.success("Item updated successfully");
       } else {
@@ -267,6 +280,7 @@ export default function AdminDashboard() {
           is_popular: formData.is_popular,
           is_available: formData.is_available,
           available_time_periods: formData.available_time_periods,
+          available_days: formData.available_days,
         });
         toast.success("Item added successfully");
       }
@@ -288,6 +302,7 @@ export default function AdminDashboard() {
       is_popular: item.is_popular ?? false,
       is_available: item.is_available ?? true,
       available_time_periods: item.available_time_periods || [],
+      available_days: item.available_days || ["mon", "tue", "wed", "thu", "fri", "sat"],
     });
     setEditingItem(item.id);
     setSelectedFile(null);
@@ -1543,6 +1558,47 @@ export default function AdminDashboard() {
                               {period.name}
                             </button>
                           ))}
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Available Days</Label>
+                        <div className="flex flex-wrap gap-2">
+                          {AVAILABLE_DAYS.map((day) => {
+                            const isMonSat = day.id === "mon-sat";
+                            const isSelected = isMonSat 
+                              ? formData.available_days.length === 6 && ["mon", "tue", "wed", "thu", "fri", "sat"].every(d => formData.available_days.includes(d))
+                              : formData.available_days.includes(day.id);
+                            
+                            return (
+                              <button
+                                key={day.id}
+                                type="button"
+                                onClick={() => {
+                                  if (isMonSat) {
+                                    // Toggle all days
+                                    if (isSelected) {
+                                      setFormData({ ...formData, available_days: [] });
+                                    } else {
+                                      setFormData({ ...formData, available_days: ["mon", "tue", "wed", "thu", "fri", "sat"] });
+                                    }
+                                  } else {
+                                    // Toggle individual day
+                                    const days = formData.available_days.includes(day.id)
+                                      ? formData.available_days.filter((d) => d !== day.id)
+                                      : [...formData.available_days, day.id];
+                                    setFormData({ ...formData, available_days: days });
+                                  }
+                                }}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                                  isSelected
+                                    ? "bg-primary text-primary-foreground"
+                                    : "bg-muted text-muted-foreground hover:bg-muted/80"
+                                }`}
+                              >
+                                {day.name}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                       <div className="flex items-center justify-between">

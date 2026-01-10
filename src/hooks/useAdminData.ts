@@ -14,6 +14,7 @@ const menuItemCreateSchema = z.object({
   is_popular: z.boolean().optional(),
   is_available: z.boolean().optional(),
   available_time_periods: z.array(z.enum(['breakfast', 'lunch', 'snacks'])).optional(),
+  available_days: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat'])).optional(),
   description: z.string().max(1000).optional(),
 });
 
@@ -28,6 +29,7 @@ const menuItemUpdateSchema = z.object({
   is_popular: z.boolean().optional(),
   is_available: z.boolean().optional(),
   available_time_periods: z.array(z.enum(['breakfast', 'lunch', 'snacks'])).optional(),
+  available_days: z.array(z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat'])).optional(),
   description: z.string().max(1000).optional(),
 });
 
@@ -115,6 +117,7 @@ export function useAdminMenuItems() {
         is_popular: item.is_popular,
         is_available: item.is_available,
         available_time_periods: item.available_time_periods || [],
+        available_days: item.available_days || ['mon', 'tue', 'wed', 'thu', 'fri', 'sat'],
         description: item.description,
       }));
     },
@@ -138,6 +141,7 @@ export function useCreateMenuItem() {
       is_popular?: boolean;
       is_available?: boolean;
       available_time_periods?: string[];
+      available_days?: string[];
       description?: string;
     }) => {
       if (!campus?.id) throw new Error('No campus selected');
@@ -163,6 +167,7 @@ export function useCreateMenuItem() {
           is_popular: validatedItem.is_popular ?? false,
           is_available: validatedItem.is_available ?? true,
           available_time_periods: (validatedItem.available_time_periods || []) as ('breakfast' | 'lunch' | 'snacks')[],
+          available_days: (validatedItem.available_days || ['mon', 'tue', 'wed', 'thu', 'fri', 'sat']) as ('mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat')[],
           description: validatedItem.description || null,
         }])
         .select()
@@ -194,6 +199,7 @@ export function useUpdateMenuItem() {
       is_popular?: boolean;
       is_available?: boolean;
       available_time_periods?: string[];
+      available_days?: string[];
       description?: string;
     }) => {
       // Validate input
