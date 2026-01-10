@@ -25,6 +25,7 @@ import {
   useOrderStats,
   useMarkTokenUsed,
 } from "@/hooks/useAdminData";
+import { useAdminPrepaidTokens, useMarkPrepaidTokenUsed } from "@/hooks/usePrepaidTokens";
 import { useMonthlyAnalytics } from "@/hooks/useMonthlyAnalytics";
 import { useWeeklyAnalytics } from "@/hooks/useWeeklyAnalytics";
 import { useTodayAnalytics } from "@/hooks/useTodayAnalytics";
@@ -58,6 +59,7 @@ import {
   Calendar,
   PieChart,
   CheckCircle2,
+  Ticket,
 } from "lucide-react";
 import { PieChart as RechartsPie, Pie, Cell, Legend } from "recharts";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
@@ -165,6 +167,8 @@ export default function AdminDashboard() {
   const deleteMenuItem = useDeleteMenuItem();
   const updateOrderStatus = useUpdateOrderStatus();
   const markTokenUsed = useMarkTokenUsed();
+  const { data: prepaidTokens = [], isLoading: tokensLoading } = useAdminPrepaidTokens();
+  const markPrepaidTokenUsed = useMarkPrepaidTokenUsed();
   const { uploadImage, isUploading } = useImageUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -467,6 +471,13 @@ export default function AdminDashboard() {
             >
               <UtensilsCrossed size={14} className="hidden sm:block" />
               Menu
+            </TabsTrigger>
+            <TabsTrigger
+              value="tokens"
+              className="gap-1.5 rounded-full px-3 sm:px-4 py-2 text-xs sm:text-sm data-[state=active]:bg-card data-[state=active]:shadow-sm"
+            >
+              <Ticket size={14} className="hidden sm:block" />
+              Tokens
             </TabsTrigger>
           </TabsList>
 
@@ -1702,6 +1713,113 @@ export default function AdminDashboard() {
                         </div>
                       );
                     })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Prepaid Tokens Tab */}
+          <TabsContent value="tokens" className="space-y-6">
+            <Card className="rounded-2xl card-shadow">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                      <Ticket className="w-5 h-5 text-primary" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Prepaid Tokens</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        {prepaidTokens.filter(t => t.payment_status === 'completed' && !t.is_used).length} active tokens
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {tokensLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                  </div>
+                ) : prepaidTokens.length === 0 ? (
+                  <p className="text-center py-8 text-muted-foreground">No prepaid tokens yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {prepaidTokens.map((token) => (
+                      <div
+                        key={token.id}
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-2xl transition-colors gap-3 ${
+                          token.is_used 
+                            ? 'bg-muted/30 opacity-60' 
+                            : token.payment_status === 'completed'
+                              ? 'bg-green-500/10 border border-green-500/20'
+                              : 'bg-muted/50'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            token.is_used 
+                              ? 'bg-muted' 
+                              : token.payment_status === 'completed'
+                                ? 'bg-green-500/20'
+                                : 'bg-yellow-500/20'
+                          }`}>
+                            <Ticket className={`w-5 h-5 ${
+                              token.is_used 
+                                ? 'text-muted-foreground' 
+                                : token.payment_status === 'completed'
+                                  ? 'text-green-600'
+                                  : 'text-yellow-600'
+                            }`} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-sm font-medium">{token.token_number}</span>
+                              {token.is_used ? (
+                                <span className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-xs">Used</span>
+                              ) : token.payment_status === 'completed' ? (
+                                <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-700 text-xs">Active</span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-700 text-xs">Pending</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              ₹{token.amount} • {token.customer_name || 'Unknown'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {new Date(token.created_at).toLocaleString()}
+                              {token.used_at && ` • Used: ${new Date(token.used_at).toLocaleString()}`}
+                            </p>
+                          </div>
+                        </div>
+                        {token.payment_status === 'completed' && !token.is_used && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            onClick={async () => {
+                              try {
+                                await markPrepaidTokenUsed.mutateAsync(token.id);
+                                toast.success('Token marked as used');
+                              } catch (error) {
+                                toast.error('Failed to mark token as used');
+                              }
+                            }}
+                            disabled={markPrepaidTokenUsed.isPending}
+                          >
+                            {markPrepaidTokenUsed.isPending ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <CheckCircle2 size={14} />
+                                Mark Used
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </CardContent>
