@@ -729,7 +729,24 @@ export default function AdminDashboard() {
                       return 'other';
                     };
 
-                    const periodOrder = ['breakfast', 'lunch', 'snacks', 'dinner', 'other'];
+                    // Get current time period
+                    const currentHour = new Date().getHours();
+                    let currentPeriod = 'other';
+                    if (currentHour >= 7 && currentHour < 11) currentPeriod = 'breakfast';
+                    else if (currentHour >= 11 && currentHour < 15) currentPeriod = 'lunch';
+                    else if (currentHour >= 15 && currentHour < 18) currentPeriod = 'snacks';
+                    else if (currentHour >= 18 && currentHour < 22) currentPeriod = 'dinner';
+
+                    // Sort: current period first, then completed (past) periods, then future
+                    const allPeriods = ['breakfast', 'lunch', 'snacks', 'dinner', 'other'];
+                    const currentIndex = allPeriods.indexOf(currentPeriod);
+                    
+                    // Reorder: current first, then past periods in reverse, then future
+                    const periodOrder = [
+                      currentPeriod,
+                      ...allPeriods.slice(0, currentIndex).reverse(), // past periods (completed)
+                      ...allPeriods.slice(currentIndex + 1), // future periods
+                    ].filter((v, i, a) => a.indexOf(v) === i); // remove duplicates
                     const periodLabels: Record<string, { name: string; icon: typeof Sun; color: string }> = {
                       breakfast: { name: 'Breakfast', icon: Sun, color: 'bg-amber-500/10 text-amber-600' },
                       lunch: { name: 'Lunch', icon: Utensils, color: 'bg-blue-500/10 text-blue-600' },
@@ -762,16 +779,29 @@ export default function AdminDashboard() {
                           
                           const periodConfig = periodLabels[period];
                           const PeriodIcon = periodConfig.icon;
+                          const isCurrent = period === currentPeriod;
+                          const periodIndex = allPeriods.indexOf(period);
+                          const isCompleted = periodIndex < currentIndex && period !== 'other';
 
                           return (
                             <div key={period} className="space-y-3">
                               {/* Period Header */}
-                              <div className="flex items-center gap-2 sticky top-0 bg-card py-2">
+                              <div className={`flex items-center gap-2 sticky top-0 py-2 ${isCurrent ? 'bg-primary/5 px-3 rounded-lg -mx-3' : 'bg-card'}`}>
                                 <div className={`p-1.5 rounded-full ${periodConfig.color}`}>
                                   <PeriodIcon className="h-4 w-4" />
                                 </div>
                                 <span className="font-semibold">{periodConfig.name}</span>
-                                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                                {isCurrent && (
+                                  <span className="text-xs font-medium bg-primary text-primary-foreground px-2 py-0.5 rounded-full animate-pulse">
+                                    NOW
+                                  </span>
+                                )}
+                                {isCompleted && (
+                                  <span className="text-xs font-medium bg-muted-foreground/20 text-muted-foreground px-2 py-0.5 rounded-full">
+                                    Completed
+                                  </span>
+                                )}
+                                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full ml-auto">
                                   {periodOrders.length} orders
                                 </span>
                               </div>
