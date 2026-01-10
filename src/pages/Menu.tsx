@@ -20,7 +20,7 @@ import { useMenuItems } from "@/hooks/useMenuItems";
 import { useAuth } from "@/context/AuthContext";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, User, UtensilsCrossed, LayoutDashboard } from "lucide-react";
+import { LogOut, User, UtensilsCrossed, LayoutDashboard, Ticket } from "lucide-react";
 
 export default function Menu() {
   const navigate = useNavigate();
@@ -80,6 +80,17 @@ export default function Menu() {
 
               {/* Theme Toggle */}
               <ThemeToggle />
+
+              {/* Prepaid Token */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="rounded-full"
+                onClick={() => navigate("/prepaid-token")}
+                title="Prepaid Tokens"
+              >
+                <Ticket size={18} />
+              </Button>
 
               <Button variant="outline" onClick={handleSignOut} className="gap-1.5 h-9 px-4 rounded-full">
                 <LogOut size={16} />

@@ -26,7 +26,7 @@ import DedicatedScanner from "./pages/DedicatedScanner";
 import MyOrders from "./pages/MyOrders";
 import Profile from "./pages/Profile";
 import OrderDetails from "./pages/OrderDetails";
-
+import PrepaidToken from "./pages/PrepaidToken";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -95,6 +95,11 @@ const App = () => (
                             <Route path="/profile" element={
                               <CampusGate>
                                 <Profile />
+                              </CampusGate>
+                            } />
+                            <Route path="/prepaid-token" element={
+                              <CampusGate>
+                                <PrepaidToken />
                               </CampusGate>
                             } />
                             <Route 
