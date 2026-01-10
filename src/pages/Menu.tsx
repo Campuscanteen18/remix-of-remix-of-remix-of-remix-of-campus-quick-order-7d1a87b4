@@ -122,8 +122,8 @@ export default function Menu() {
                 />
               </div>
 
-              {/* Time Period Banner */}
-              {currentPeriod && !searchQuery && <TimePeriodBanner period={currentPeriod} />}
+              {/* Time Period Banner - only show for "all" category to avoid confusion */}
+              {currentPeriod && !searchQuery && selectedCategory === "all" && <TimePeriodBanner period={currentPeriod} />}
 
               {/* Popular Now Section */}
               {!isLoading && !error && popularItems.length > 0 && selectedCategory === "all" && !searchQuery && (
