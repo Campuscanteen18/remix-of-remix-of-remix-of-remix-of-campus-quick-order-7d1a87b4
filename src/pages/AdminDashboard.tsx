@@ -501,7 +501,7 @@ export default function AdminDashboard() {
                         <div className="text-center">
                           <IndianRupee className="w-6 h-6 mx-auto text-secondary mb-1" />
                           <p className="text-2xl sm:text-3xl font-bold text-secondary">₹{(todayStats?.totalRevenue || 0).toLocaleString()}</p>
-                          <p className="text-[10px] sm:text-xs text-muted-foreground">Revenue</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Today Total Revenue</p>
                         </div>
                       </CardContent>
                     </Card>
