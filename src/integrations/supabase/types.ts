@@ -562,6 +562,10 @@ export type Database = {
       }
       is_campus_admin: { Args: { _user_id: string }; Returns: boolean }
       is_super_admin: { Args: { _user_id: string }; Returns: boolean }
+      reset_item_stock: {
+        Args: { item_id: string; new_stock?: number }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "student" | "admin" | "kiosk" | "super_admin"
