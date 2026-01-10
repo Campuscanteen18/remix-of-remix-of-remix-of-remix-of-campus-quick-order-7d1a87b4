@@ -109,7 +109,7 @@ export function useAdminMenuItems() {
         name: item.name,
         price: Number(item.price),
         quantity: item.stock_quantity ?? 0,
-        category: item.category_id || 'snacks',
+        category: item.category || 'snacks',
         image: item.image_url,
         is_veg: item.is_veg,
         is_popular: item.is_popular,
@@ -157,7 +157,7 @@ export function useCreateMenuItem() {
           name: validatedItem.name,
           price: validatedItem.price,
           stock_quantity: validatedItem.quantity || 0,
-          category_id: null,
+          category: validatedItem.category || 'snacks',
           image_url: validatedItem.image || null,
           is_veg: validatedItem.is_veg ?? true,
           is_popular: validatedItem.is_popular ?? false,
@@ -213,7 +213,7 @@ export function useUpdateMenuItem() {
         updateData.image_url = image;
       }
       if (category !== undefined) {
-        updateData.category_id = category;
+        updateData.category = category;
       }
 
       const { data, error } = await supabase

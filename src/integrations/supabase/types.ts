@@ -201,6 +201,7 @@ export type Database = {
             | Database["public"]["Enums"]["time_period"][]
             | null
           campus_id: string
+          category: string | null
           category_id: string | null
           created_at: string
           description: string | null
@@ -219,6 +220,7 @@ export type Database = {
             | Database["public"]["Enums"]["time_period"][]
             | null
           campus_id: string
+          category?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null
@@ -237,6 +239,7 @@ export type Database = {
             | Database["public"]["Enums"]["time_period"][]
             | null
           campus_id?: string
+          category?: string | null
           category_id?: string | null
           created_at?: string
           description?: string | null

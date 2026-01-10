@@ -48,7 +48,7 @@ export function MenuProvider({ children }: { children: ReactNode }) {
         description: item.description || '',
         price: Number(item.price),
         image: item.image_url || '/placeholder.svg',
-        category: item.category_id || 'snacks',
+        category: item.category || 'snacks',
         isVeg: item.is_veg,
         isPopular: item.is_popular,
         isAvailable: item.is_available,
