@@ -508,15 +508,6 @@ export default function AdminDashboard() {
                     <Card className="rounded-2xl card-shadow">
                       <CardContent className="p-3 sm:p-4">
                         <div className="text-center">
-                          <TrendingUp className="w-6 h-6 mx-auto text-green-600 mb-1" />
-                          <p className="text-2xl sm:text-3xl font-bold">{todayStats?.peakHour || '-'}</p>
-                          <p className="text-[10px] sm:text-xs text-muted-foreground">Peak Hour</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="rounded-2xl card-shadow">
-                      <CardContent className="p-3 sm:p-4">
-                        <div className="text-center">
                           <Users className="w-6 h-6 mx-auto text-muted-foreground mb-1" />
                           <p className="text-2xl sm:text-3xl font-bold">₹{todayStats?.avgOrderValue || 0}</p>
                           <p className="text-[10px] sm:text-xs text-muted-foreground">Avg Order</p>
@@ -623,69 +614,6 @@ export default function AdminDashboard() {
                     </Card>
                   </div>
 
-                  {/* Hourly Orders Chart */}
-                  <Card className="rounded-2xl card-shadow">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base">Hourly Orders</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {todayStats?.hourlyData && todayStats.hourlyData.some(h => h.orders > 0) ? (
-                        <div className="h-[200px]">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={todayStats.hourlyData}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                              <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
-                              <Tooltip
-                                formatter={(value: number, name: string) => [
-                                  name === 'revenue' ? `₹${value.toLocaleString()}` : value,
-                                  name === 'revenue' ? 'Revenue' : 'Orders'
-                                ]}
-                                contentStyle={{
-                                  background: "hsl(var(--card))",
-                                  border: "1px solid hsl(var(--border))",
-                                  borderRadius: "12px",
-                                }}
-                              />
-                              <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
-                        </div>
-                      ) : (
-                        <p className="text-center py-6 text-muted-foreground">No hourly data yet</p>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  {/* Completion Rate */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <Card className="rounded-2xl card-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
-                            <Package className="w-6 h-6 text-green-600" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Completion Rate</p>
-                            <p className="text-3xl font-bold text-green-600">{todayStats?.completionRate || 0}%</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    <Card className="rounded-2xl card-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
-                            <IndianRupee className="w-6 h-6 text-secondary" />
-                          </div>
-                          <div>
-                            <p className="text-xs text-muted-foreground">Today's Revenue</p>
-                            <p className="text-3xl font-bold text-secondary">₹{(todayStats?.totalRevenue || 0).toLocaleString()}</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
                 </>
               )}
             </div>
