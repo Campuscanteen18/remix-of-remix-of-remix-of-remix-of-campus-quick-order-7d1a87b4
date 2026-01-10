@@ -15,12 +15,12 @@ export function SearchBar({ value, onChange, placeholder = "Search menu..." }: S
   return (
     <motion.div 
       className="relative"
-      initial={{ opacity: 0, y: -10 }}
+      initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
     >
       <Search 
-        className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors ${
+        className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 transition-colors duration-200 ${
           isFocused ? 'text-primary' : 'text-muted-foreground'
         }`} 
       />
@@ -31,7 +31,7 @@ export function SearchBar({ value, onChange, placeholder = "Search menu..." }: S
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
         placeholder={placeholder}
-        className="pl-10 pr-10 h-10 rounded-full bg-muted/50 border-transparent focus:border-primary focus:bg-card transition-all"
+        className="pl-10 pr-10 h-11 rounded-xl bg-muted/50 border-transparent focus:border-primary focus:bg-card transition-all text-sm"
       />
       <AnimatePresence>
         {value && (
@@ -40,7 +40,7 @@ export function SearchBar({ value, onChange, placeholder = "Search menu..." }: S
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.8 }}
             onClick={() => onChange('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-muted-foreground/20 flex items-center justify-center hover:bg-muted-foreground/30 transition-colors"
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-muted-foreground/15 flex items-center justify-center hover:bg-muted-foreground/25 transition-colors"
           >
             <X size={12} />
           </motion.button>

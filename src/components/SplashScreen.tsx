@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { UtensilsCrossed } from 'lucide-react';
+import { Utensils } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SplashScreenProps {
@@ -10,9 +10,9 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
   const [phase, setPhase] = useState<'logo' | 'text' | 'exit'>('logo');
 
   useEffect(() => {
-    const logoTimer = setTimeout(() => setPhase('text'), 600);
-    const textTimer = setTimeout(() => setPhase('exit'), 1400);
-    const exitTimer = setTimeout(onComplete, 1800);
+    const logoTimer = setTimeout(() => setPhase('text'), 400);
+    const textTimer = setTimeout(() => setPhase('exit'), 1200);
+    const exitTimer = setTimeout(onComplete, 1600);
 
     return () => {
       clearTimeout(logoTimer);
@@ -24,22 +24,30 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
   return (
     <div
       className={cn(
-        'fixed inset-0 z-[100] flex items-center justify-center bg-background transition-opacity duration-400',
+        'fixed inset-0 z-[100] flex items-center justify-center bg-background transition-opacity duration-300',
         phase === 'exit' ? 'opacity-0' : 'opacity-100'
       )}
     >
-      <div className="flex flex-col items-center gap-4">
+      {/* Subtle gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/3 via-transparent to-secondary/3" />
+      
+      <div className="relative flex flex-col items-center gap-5">
         {/* Animated Logo */}
         <div
           className={cn(
-            'relative flex items-center justify-center w-24 h-24 rounded-3xl bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-2xl transition-all duration-500',
-            phase === 'logo' ? 'scale-0 rotate-180' : 'scale-100 rotate-0'
+            'relative flex items-center justify-center w-20 h-20 rounded-2xl bg-primary text-primary-foreground transition-all duration-500 ease-out-expo',
+            phase === 'logo' ? 'scale-0 opacity-0' : 'scale-100 opacity-100'
           )}
+          style={{
+            boxShadow: phase !== 'logo' 
+              ? '0 8px 32px -8px hsl(var(--primary) / 0.4)' 
+              : 'none'
+          }}
         >
-          <UtensilsCrossed size={48} strokeWidth={2.5} />
+          <Utensils size={40} strokeWidth={1.8} />
           <div 
             className={cn(
-              'absolute -top-2 -right-2 w-5 h-5 bg-secondary rounded-full border-4 border-background transition-all duration-300 delay-200',
+              'absolute -bottom-1 -right-1 w-5 h-5 bg-secondary rounded-lg border-3 border-background transition-all duration-300 delay-150',
               phase === 'logo' ? 'scale-0' : 'scale-100'
             )} 
           />
@@ -48,18 +56,30 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
         {/* Brand Text */}
         <div
           className={cn(
-            'flex flex-col items-center transition-all duration-500',
+            'flex flex-col items-center gap-0.5 transition-all duration-400 ease-out-expo',
             phase === 'text' || phase === 'exit' 
               ? 'opacity-100 translate-y-0' 
-              : 'opacity-0 translate-y-4'
+              : 'opacity-0 translate-y-3'
           )}
         >
-          <span className="text-3xl font-bold text-foreground leading-tight">
+          <span className="font-display text-2xl font-semibold text-foreground tracking-tight">
             Campus
           </span>
-          <span className="text-3xl font-bold text-primary leading-tight -mt-1">
+          <span className="font-display text-2xl font-bold text-primary tracking-tight">
             Canteen
           </span>
+        </div>
+        
+        {/* Tagline */}
+        <div
+          className={cn(
+            'text-sm text-muted-foreground transition-all duration-400 delay-100',
+            phase === 'text' || phase === 'exit' 
+              ? 'opacity-100' 
+              : 'opacity-0'
+          )}
+        >
+          Order ahead, skip the queue
         </div>
       </div>
     </div>

@@ -1,8 +1,7 @@
-import { TrendingUp, Plus, Minus, Check } from "lucide-react";
+import { TrendingUp, Plus, Minus } from "lucide-react";
 import { MenuItem } from "@/types/canteen";
 import { useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 
 interface PopularNowProps {
   items: MenuItem[];
@@ -17,107 +16,86 @@ export function PopularNow({ items }: PopularNowProps) {
 
   return (
     <div className="mb-6">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-5 h-5 text-primary" />
-          <h3 className="font-bold text-lg lg:text-xl">Popular Right Now</h3>
+          <div className="w-8 h-8 rounded-lg bg-canteen-warning/10 flex items-center justify-center">
+            <TrendingUp className="w-4 h-4 text-canteen-warning" />
+          </div>
+          <h3 className="font-display font-semibold text-base">Popular Now</h3>
         </div>
-        <Badge variant="outline" className="text-primary border-primary/30 bg-primary/5">
+        <span className="text-xs font-medium text-muted-foreground px-2 py-1 rounded-full bg-muted">
           Trending
-        </Badge>
+        </span>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {items.slice(0, 4).map((item) => {
           const cartItem = getCartItem(item.id);
           const quantity = cartItem?.quantity || 0;
-          const popularity = Math.floor(Math.random() * 10) + 90; // Mock popularity 90-99%
 
           return (
             <div
               key={item.id}
               className={cn(
-                "relative bg-card rounded-2xl overflow-hidden transition-all duration-200",
-                "border-2",
-                quantity > 0 ? "border-primary shadow-lg" : "border-transparent card-shadow",
+                "relative bg-card rounded-xl overflow-hidden transition-all duration-200",
+                quantity > 0 
+                  ? "ring-2 ring-primary shadow-medium" 
+                  : "shadow-soft hover:shadow-medium",
               )}
             >
-              {/* Veg/Non-veg indicator (UPDATED) */}
+              {/* Veg/Non-veg indicator */}
               <div className="absolute top-2 left-2 z-10">
-                <div className="bg-white p-[2px] rounded-[2px] shadow-sm">
-                  <div
-                    className={cn(
-                      "w-4 h-4 border flex items-center justify-center",
-                      // Outer Square Border
-                      item.isVeg ? "border-green-600" : "border-red-600",
-                    )}
-                  >
-                    <div
-                      className={cn(
-                        "w-2.5 h-2.5 rounded-full",
-                        // Inner Circle Fill
-                        item.isVeg ? "bg-green-600" : "bg-red-600",
-                      )}
-                    />
-                  </div>
+                <div className={cn(
+                  "w-4 h-4 rounded-sm border-[1.5px] flex items-center justify-center bg-white/95 backdrop-blur-sm",
+                  item.isVeg ? "border-green-600" : "border-red-600",
+                )}>
+                  <div className={cn(
+                    "w-2 h-2 rounded-full",
+                    item.isVeg ? "bg-green-600" : "bg-red-600",
+                  )} />
                 </div>
               </div>
-
-              {/* Popularity badge */}
-              <div className="absolute top-2 right-2 z-10">
-                <span className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/90 text-xs font-medium text-primary shadow-sm">
-                  <TrendingUp size={10} />
-                  {popularity}%
-                </span>
-              </div>
-
-              {/* Selected indicator */}
-              {quantity > 0 && (
-                <div className="absolute top-2 right-2 z-20">
-                  <div className="w-5 h-5 rounded-full bg-primary flex items-center justify-center">
-                    <Check size={12} className="text-primary-foreground" />
-                  </div>
-                </div>
-              )}
 
               {/* Image */}
               <div className="aspect-square overflow-hidden">
-                <img src={item.image} alt={item.name} className="w-full h-full object-cover" />
+                <img 
+                  src={item.image} 
+                  alt={item.name} 
+                  className="w-full h-full object-cover transition-transform duration-300 hover:scale-105" 
+                />
               </div>
 
               {/* Content */}
-              <div className="p-3">
-                <h4 className="font-semibold text-sm line-clamp-2 leading-tight min-h-[2.25rem]">{item.name}</h4>
-                <p className="text-xs text-muted-foreground truncate mt-0.5">{item.description}</p>
+              <div className="p-2.5">
+                <h4 className="font-medium text-xs line-clamp-1 leading-snug">{item.name}</h4>
 
                 <div className="flex items-center justify-between mt-2 gap-1">
-                  <span className="font-bold text-foreground shrink-0 text-sm">₹{item.price}</span>
+                  <span className="font-bold text-sm text-foreground">₹{item.price}</span>
 
                   {quantity > 0 ? (
-                    <div className="flex items-center gap-1 shrink-0">
+                    <div className="flex items-center gap-1">
                       <button
                         onClick={() => updateQuantity(item.id, quantity - 1)}
-                        className="w-5 h-5 lg:w-6 lg:h-6 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 transition-colors shrink-0"
+                        className="w-6 h-6 rounded-md bg-muted flex items-center justify-center hover:bg-muted/70 transition-colors"
                       >
-                        <Minus size={10} className="lg:hidden" />
-                        <Minus size={12} className="hidden lg:block" />
+                        <Minus size={12} />
                       </button>
-                      <span className="font-bold text-xs min-w-[0.75rem] text-center">{quantity}</span>
+                      <span className="font-bold text-xs min-w-[1rem] text-center tabular-nums">
+                        {quantity}
+                      </span>
                       <button
                         onClick={() => addToCart(item)}
-                        className="w-5 h-5 lg:w-6 lg:h-6 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-105 transition-transform shrink-0"
+                        className="w-6 h-6 rounded-md bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors"
                       >
-                        <Plus size={10} className="lg:hidden" />
-                        <Plus size={12} className="hidden lg:block" />
+                        <Plus size={12} />
                       </button>
                     </div>
                   ) : (
                     <button
                       onClick={() => addToCart(item)}
-                      className="w-6 h-6 lg:w-7 lg:h-7 rounded-full bg-primary text-primary-foreground flex items-center justify-center hover:scale-105 transition-transform shadow-md shrink-0"
+                      className="w-7 h-7 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 transition-colors active:scale-95"
                     >
-                      <Plus size={12} className="lg:hidden" />
-                      <Plus size={14} className="hidden lg:block" />
+                      <Plus size={14} />
                     </button>
                   )}
                 </div>

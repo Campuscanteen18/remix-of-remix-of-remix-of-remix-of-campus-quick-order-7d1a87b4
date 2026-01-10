@@ -46,44 +46,47 @@ export default function SelectCampus() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-primary/5 via-background to-secondary/5">
-      <div className="w-full max-w-sm">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      {/* Subtle background */}
+      <div className="fixed inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-secondary/[0.02]" />
+      
+      <div className="relative w-full max-w-[380px]">
         {/* Logo Section */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <Logo size="lg" showText={false} />
           </div>
-          <h1 className="text-2xl font-bold text-foreground">Campus Canteen</h1>
-          <p className="text-muted-foreground mt-2">Find your campus to get started</p>
+          <h1 className="font-display text-xl font-semibold text-foreground">Campus Canteen</h1>
+          <p className="text-sm text-muted-foreground mt-1">Find your campus to get started</p>
         </div>
 
         {/* Campus Selector Card */}
-        <div className="bg-card rounded-2xl shadow-xl border border-border p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-primary" />
+        <div className="bg-card rounded-2xl shadow-soft border border-border p-5">
+          <div className="flex items-center gap-3 mb-5">
+            <div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h2 className="font-semibold text-lg">Enter Campus Code</h2>
-              <p className="text-sm text-muted-foreground">e.g., MIT, SRM, VIT</p>
+              <h2 className="font-display font-semibold">Enter Campus Code</h2>
+              <p className="text-xs text-muted-foreground">e.g., MIT, SRM, VIT</p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="campus-code" className="text-sm font-medium">
+            <div className="space-y-1.5">
+              <Label htmlFor="campus-code" className="text-xs font-medium text-muted-foreground">
                 Campus Code
               </Label>
               <Input
                 id="campus-code"
                 type="text"
-                placeholder="Enter code (e.g., MIT)"
+                placeholder="Enter code"
                 value={campusCode}
                 onChange={(e) => {
                   setCampusCode(e.target.value.toUpperCase());
                   setError(null);
                 }}
-                className={`h-12 text-lg font-mono uppercase tracking-widest text-center ${
+                className={`h-12 text-lg font-mono uppercase tracking-widest text-center rounded-xl ${
                   error ? 'border-destructive' : ''
                 }`}
                 maxLength={10}
@@ -93,8 +96,8 @@ export default function SelectCampus() {
               />
               
               {error && (
-                <div className="flex items-center gap-2 text-destructive text-sm">
-                  <AlertCircle className="w-4 h-4" />
+                <div className="flex items-center gap-1.5 text-destructive text-xs mt-1.5">
+                  <AlertCircle className="w-3.5 h-3.5" />
                   <span>{error}</span>
                 </div>
               )}
@@ -102,18 +105,18 @@ export default function SelectCampus() {
 
             <Button 
               type="submit" 
-              className="w-full h-12 text-base font-bold rounded-xl gap-2"
+              className="w-full h-11 font-semibold rounded-xl gap-2"
               disabled={isLoading || !campusCode.trim()}
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <Loader2 className="w-4 h-4 animate-spin" />
                   Finding Campus...
                 </>
               ) : (
                 <>
                   Continue
-                  <ArrowRight size={18} />
+                  <ArrowRight size={16} />
                 </>
               )}
             </Button>
@@ -121,9 +124,8 @@ export default function SelectCampus() {
         </div>
 
         {/* Help Text */}
-        <p className="text-center text-xs text-muted-foreground mt-6">
-          Don't know your campus code?<br />
-          Contact your canteen administrator.
+        <p className="text-center text-xs text-muted-foreground mt-5">
+          Don't know your campus code? Contact your canteen administrator.
         </p>
       </div>
     </div>
