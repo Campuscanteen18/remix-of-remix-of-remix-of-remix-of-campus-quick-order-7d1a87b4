@@ -1,5 +1,4 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCampus } from '@/context/CampusContext';
 import { z } from 'zod';
@@ -252,16 +251,14 @@ export function useDeleteMenuItem() {
   });
 }
 
-// Fetch orders for the current campus with real-time updates
+// Fetch orders for the current campus with auto-refresh
 export function useAdminOrders() {
   const { campus } = useCampus();
-  const queryClient = useQueryClient();
-  const campusId = campus?.id;
 
-  const query = useQuery({
-    queryKey: ['admin-orders', campusId],
+  return useQuery({
+    queryKey: ['admin-orders', campus?.id],
     queryFn: async () => {
-      if (!campusId) return [];
+      if (!campus?.id) return [];
 
       const { data, error } = await supabase
         .from('orders')
@@ -274,7 +271,7 @@ export function useAdminOrders() {
             quantity
           )
         `)
-        .eq('campus_id', campusId)
+        .eq('campus_id', campus.id)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -293,35 +290,9 @@ export function useAdminOrders() {
         qr_code: order.qr_code,
       }));
     },
-    enabled: !!campusId,
+    enabled: !!campus?.id,
+    refetchInterval: 5000, // Auto-refresh every 5 seconds for real-time updates
   });
-
-  // Set up real-time subscription after query is defined
-  useEffect(() => {
-    if (!campusId) return;
-
-    const channel = supabase
-      .channel(`admin-orders-${campusId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'orders',
-          filter: `campus_id=eq.${campusId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['admin-orders', campusId] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [campusId, queryClient]);
-
-  return query;
 }
 
 // Update order status
