@@ -580,14 +580,18 @@ export default function AdminDashboard() {
             </div>
 
             {/* Weekly Detailed Review */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <TrendingUp className="h-5 w-5 text-secondary" />
-                <h3 className="text-lg font-semibold">Weekly Review</h3>
-                {weeklyStats?.weekRange && (
-                  <span className="text-sm text-muted-foreground">({weeklyStats.weekRange})</span>
-                )}
-              </div>
+            <Collapsible defaultOpen={false} className="space-y-4">
+              <CollapsibleTrigger className="w-full group">
+                <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+                  <TrendingUp className="h-5 w-5 text-secondary" />
+                  <h3 className="text-lg font-semibold">Weekly Review</h3>
+                  {weeklyStats?.weekRange && (
+                    <span className="text-sm text-muted-foreground">({weeklyStats.weekRange})</span>
+                  )}
+                  <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto transition-transform group-data-[state=open]:rotate-180" />
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4">
 
               {weeklyLoading ? (
                 <div className="flex justify-center py-8">
@@ -780,17 +784,21 @@ export default function AdminDashboard() {
                   </div>
                 </>
               )}
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Monthly Analytics Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Calendar className="h-5 w-5 text-primary" />
-                <h3 className="text-lg font-semibold">
-                  {monthlyStats?.monthName} {monthlyStats?.year} Analytics
-                </h3>
-              </div>
-
+            <Collapsible defaultOpen={false} className="space-y-4">
+              <CollapsibleTrigger className="w-full group">
+                <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+                  <Calendar className="h-5 w-5 text-primary" />
+                  <h3 className="text-lg font-semibold">
+                    {monthlyStats?.monthName} {monthlyStats?.year} Analytics
+                  </h3>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground ml-auto transition-transform group-data-[state=open]:rotate-180" />
+                </div>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4">
               {monthlyLoading ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-primary" />
@@ -961,7 +969,8 @@ export default function AdminDashboard() {
                   </div>
                 </>
               )}
-            </div>
+              </CollapsibleContent>
+            </Collapsible>
 
             {/* Low Stock Alerts */}
             {lowStockItems.length > 0 && (
