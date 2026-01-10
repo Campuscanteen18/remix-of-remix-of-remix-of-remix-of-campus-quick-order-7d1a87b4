@@ -156,7 +156,7 @@ export default function Checkout() {
       }
 
       setCurrentOrder(order);
-      clearCart();
+      // Don't clear cart here - it will be cleared after payment verification in OrderSuccess
 
       if (data.redirectUrl) {
         window.location.href = data.redirectUrl;
