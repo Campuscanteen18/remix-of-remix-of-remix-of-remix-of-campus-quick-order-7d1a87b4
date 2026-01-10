@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { CheckCircle, Home, QrCode, MapPin, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
@@ -27,7 +27,8 @@ interface OrderData {
 export default function OrderSuccess() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { currentOrder, setCurrentOrder } = useCart();
+  const { currentOrder, setCurrentOrder, clearCart } = useCart();
+  const cartCleared = useRef(false);
   
   const [verificationState, setVerificationState] = useState<'verifying' | 'success' | 'pending' | 'failed'>('verifying');
   const [orderData, setOrderData] = useState<OrderData | null>(null);
@@ -92,6 +93,13 @@ export default function OrderSuccess() {
         if (data.payment_status === 'paid' || data.payment_status === 'completed') {
           setVerificationState('success');
           clearInterval(pollInterval);
+          
+          // Clear the cart after payment is verified (only once)
+          if (!cartCleared.current) {
+            cartCleared.current = true;
+            clearCart();
+          }
+          
           // Show QR after verification success animation
           setTimeout(() => setShowQR(true), 800);
         } else if (attempts >= maxAttempts) {
