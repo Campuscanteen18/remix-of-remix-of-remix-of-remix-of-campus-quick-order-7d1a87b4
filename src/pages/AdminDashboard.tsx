@@ -604,48 +604,68 @@ export default function AdminDashboard() {
                     {orders.slice(0, 20).map((order) => (
                       <div
                         key={order.id}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-2xl bg-muted/50 gap-3"
+                        className="p-4 rounded-2xl bg-muted/50"
                       >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-primary text-sm sm:text-base">
-                              #{order.order_number || order.id.slice(-8).toUpperCase()}
-                            </span>
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                order.status === "collected"
-                                  ? "bg-green-500/10 text-green-600"
-                                  : order.status === "cancelled"
-                                    ? "bg-destructive/10 text-destructive"
-                                    : order.status === "ready"
-                                      ? "bg-secondary/10 text-secondary"
-                                      : order.status === "confirmed"
-                                        ? "bg-blue-500/10 text-blue-600"
-                                        : "bg-amber-500/10 text-amber-600"
-                              }`}
-                            >
-                              {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                            </span>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-primary text-sm sm:text-base">
+                                #{order.order_number || order.id.slice(-8).toUpperCase()}
+                              </span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                  order.status === "collected"
+                                    ? "bg-green-500/10 text-green-600"
+                                    : order.status === "cancelled"
+                                      ? "bg-destructive/10 text-destructive"
+                                      : order.status === "ready"
+                                        ? "bg-secondary/10 text-secondary"
+                                        : order.status === "confirmed"
+                                          ? "bg-blue-500/10 text-blue-600"
+                                          : "bg-amber-500/10 text-amber-600"
+                                }`}
+                              >
+                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <span className="text-sm font-medium">
+                                {order.user_name || "Guest"}
+                              </span>
+                              <span className="text-muted-foreground">•</span>
+                              <span className="text-sm font-bold text-primary">
+                                ₹{order.total}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(order.created_at).toLocaleDateString("en-IN", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </p>
                           </div>
-                          <div className="flex items-center gap-2 mt-1.5">
-                            <span className="text-sm font-medium">
-                              {order.user_name || 'Guest'}
-                            </span>
-                            <span className="text-muted-foreground">•</span>
-                            <span className="text-sm text-muted-foreground">
-                              ₹{order.total}
-                            </span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(order.created_at).toLocaleDateString('en-IN', {
-                              day: '2-digit',
-                              month: 'short',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit',
-                            })}
-                          </p>
                         </div>
+                        
+                        {/* Order Items */}
+                        {order.items && order.items.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-border/50">
+                            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Items</p>
+                            <div className="flex flex-wrap gap-2">
+                              {order.items.map((item, idx) => (
+                                <span
+                                  key={idx}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background text-xs font-medium border border-border/50"
+                                >
+                                  <span className="text-foreground">{item.name}</span>
+                                  <span className="text-muted-foreground">×{item.quantity}</span>
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
