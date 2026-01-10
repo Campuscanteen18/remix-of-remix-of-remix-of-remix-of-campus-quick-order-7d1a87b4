@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useAdminAuth } from "@/context/AdminAuthContext";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -49,6 +50,7 @@ import {
   Sun,
   Utensils,
   Cookie,
+  ChevronDown,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
 
@@ -783,6 +785,102 @@ export default function AdminDashboard() {
                           const periodIndex = allPeriods.indexOf(period);
                           const isCompleted = periodIndex < currentIndex && period !== 'other';
 
+                          // Render order card helper
+                          const renderOrderCard = (order: typeof periodOrders[0]) => (
+                            <div
+                              key={order.id}
+                              className="p-4 rounded-2xl bg-muted/50"
+                            >
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="font-bold text-primary text-sm sm:text-base">
+                                      #{order.order_number || order.id.slice(-8).toUpperCase()}
+                                    </span>
+                                    <span
+                                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        order.status === "collected"
+                                          ? "bg-green-500/10 text-green-600"
+                                          : order.status === "cancelled"
+                                            ? "bg-destructive/10 text-destructive"
+                                            : order.status === "ready"
+                                              ? "bg-secondary/10 text-secondary"
+                                              : order.status === "confirmed"
+                                                ? "bg-blue-500/10 text-blue-600"
+                                                : "bg-amber-500/10 text-amber-600"
+                                      }`}
+                                    >
+                                      {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <span className="text-sm font-medium">
+                                      {order.user_name || "Guest"}
+                                    </span>
+                                    <span className="text-muted-foreground">•</span>
+                                    <span className="text-sm font-bold text-primary">
+                                      ₹{order.total}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {new Date(order.created_at).toLocaleDateString("en-IN", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </p>
+                                </div>
+                              </div>
+                              
+                              {/* Order Items */}
+                              {order.items && order.items.length > 0 && (
+                                <div className="mt-3 pt-3 border-t border-border/50">
+                                  <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Items</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {order.items.map((item, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background text-xs font-medium border border-border/50"
+                                      >
+                                        <span className="text-foreground">{item.name}</span>
+                                        <span className="text-muted-foreground">×{item.quantity}</span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+
+                          // For completed periods, use Collapsible (collapsed by default)
+                          if (isCompleted) {
+                            return (
+                              <Collapsible key={period} defaultOpen={false} className="space-y-3">
+                                <CollapsibleTrigger className="w-full">
+                                  <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
+                                    <div className={`p-1.5 rounded-full ${periodConfig.color}`}>
+                                      <PeriodIcon className="h-4 w-4" />
+                                    </div>
+                                    <span className="font-semibold">{periodConfig.name}</span>
+                                    <span className="text-xs font-medium bg-muted-foreground/20 text-muted-foreground px-2 py-0.5 rounded-full">
+                                      Completed
+                                    </span>
+                                    <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full ml-auto">
+                                      {periodOrders.length} orders
+                                    </span>
+                                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+                                  </div>
+                                </CollapsibleTrigger>
+                                <CollapsibleContent className="space-y-3">
+                                  {periodOrders.slice(0, 10).map(renderOrderCard)}
+                                </CollapsibleContent>
+                              </Collapsible>
+                            );
+                          }
+
+                          // For current/future periods, show expanded
                           return (
                             <div key={period} className="space-y-3">
                               {/* Period Header */}
@@ -796,84 +894,13 @@ export default function AdminDashboard() {
                                     NOW
                                   </span>
                                 )}
-                                {isCompleted && (
-                                  <span className="text-xs font-medium bg-muted-foreground/20 text-muted-foreground px-2 py-0.5 rounded-full">
-                                    Completed
-                                  </span>
-                                )}
                                 <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full ml-auto">
                                   {periodOrders.length} orders
                                 </span>
                               </div>
                               
                               {/* Period Orders */}
-                              {periodOrders.slice(0, 10).map((order) => (
-                                <div
-                                  key={order.id}
-                                  className="p-4 rounded-2xl bg-muted/50"
-                                >
-                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <span className="font-bold text-primary text-sm sm:text-base">
-                                          #{order.order_number || order.id.slice(-8).toUpperCase()}
-                                        </span>
-                                        <span
-                                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                            order.status === "collected"
-                                              ? "bg-green-500/10 text-green-600"
-                                              : order.status === "cancelled"
-                                                ? "bg-destructive/10 text-destructive"
-                                                : order.status === "ready"
-                                                  ? "bg-secondary/10 text-secondary"
-                                                  : order.status === "confirmed"
-                                                    ? "bg-blue-500/10 text-blue-600"
-                                                    : "bg-amber-500/10 text-amber-600"
-                                          }`}
-                                        >
-                                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                                        </span>
-                                      </div>
-                                      <div className="flex items-center gap-2 mt-1.5">
-                                        <span className="text-sm font-medium">
-                                          {order.user_name || "Guest"}
-                                        </span>
-                                        <span className="text-muted-foreground">•</span>
-                                        <span className="text-sm font-bold text-primary">
-                                          ₹{order.total}
-                                        </span>
-                                      </div>
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        {new Date(order.created_at).toLocaleDateString("en-IN", {
-                                          day: "2-digit",
-                                          month: "short",
-                                          year: "numeric",
-                                          hour: "2-digit",
-                                          minute: "2-digit",
-                                        })}
-                                      </p>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Order Items */}
-                                  {order.items && order.items.length > 0 && (
-                                    <div className="mt-3 pt-3 border-t border-border/50">
-                                      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Items</p>
-                                      <div className="flex flex-wrap gap-2">
-                                        {order.items.map((item, idx) => (
-                                          <span
-                                            key={idx}
-                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background text-xs font-medium border border-border/50"
-                                          >
-                                            <span className="text-foreground">{item.name}</span>
-                                            <span className="text-muted-foreground">×{item.quantity}</span>
-                                          </span>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
+                              {periodOrders.slice(0, 10).map(renderOrderCard)}
                             </div>
                           );
                         })}
