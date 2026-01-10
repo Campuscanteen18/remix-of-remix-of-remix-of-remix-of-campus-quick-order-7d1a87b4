@@ -23,6 +23,7 @@ import {
   useAdminOrders,
   useUpdateOrderStatus,
   useOrderStats,
+  useMarkTokenUsed,
 } from "@/hooks/useAdminData";
 import { useMonthlyAnalytics } from "@/hooks/useMonthlyAnalytics";
 import { useWeeklyAnalytics } from "@/hooks/useWeeklyAnalytics";
@@ -56,6 +57,7 @@ import {
   ChevronDown,
   Calendar,
   PieChart,
+  CheckCircle2,
 } from "lucide-react";
 import { PieChart as RechartsPie, Pie, Cell, Legend } from "recharts";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts";
@@ -154,6 +156,7 @@ export default function AdminDashboard() {
   const updateMenuItem = useUpdateMenuItem();
   const deleteMenuItem = useDeleteMenuItem();
   const updateOrderStatus = useUpdateOrderStatus();
+  const markTokenUsed = useMarkTokenUsed();
   const { uploadImage, isUploading } = useImageUpload();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -1382,6 +1385,43 @@ export default function AdminDashboard() {
                                         <span className="text-muted-foreground">×{item.quantity}</span>
                                       </span>
                                     ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Mark Token Used Button - for old orders not yet collected */}
+                              {order.status !== 'collected' && order.status !== 'cancelled' && !order.is_used && (
+                                <div className="mt-3 pt-3 border-t border-border/50">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="w-full gap-2 text-green-600 border-green-600/30 hover:bg-green-500/10"
+                                    onClick={() => {
+                                      markTokenUsed.mutate(order.id, {
+                                        onSuccess: () => {
+                                          toast.success(`Token #${order.order_number?.slice(-4) || order.id.slice(-4)} marked as used`);
+                                        },
+                                        onError: () => {
+                                          toast.error('Failed to mark token as used');
+                                        },
+                                      });
+                                    }}
+                                    disabled={markTokenUsed.isPending}
+                                  >
+                                    {markTokenUsed.isPending ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <CheckCircle2 className="h-4 w-4" />
+                                    )}
+                                    Mark Token Used
+                                  </Button>
+                                </div>
+                              )}
+                              {order.is_used && (
+                                <div className="mt-3 pt-3 border-t border-border/50">
+                                  <div className="flex items-center gap-2 text-green-600 text-sm">
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    <span className="font-medium">Token Used</span>
                                   </div>
                                 </div>
                               )}
