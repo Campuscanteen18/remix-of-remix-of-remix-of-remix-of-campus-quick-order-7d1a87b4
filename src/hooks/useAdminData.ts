@@ -256,37 +256,12 @@ export function useDeleteMenuItem() {
 export function useAdminOrders() {
   const { campus } = useCampus();
   const queryClient = useQueryClient();
+  const campusId = campus?.id;
 
-  // Set up real-time subscription
-  useEffect(() => {
-    if (!campus?.id) return;
-
-    const channel = supabase
-      .channel('admin-orders-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to INSERT, UPDATE, DELETE
-          schema: 'public',
-          table: 'orders',
-          filter: `campus_id=eq.${campus.id}`,
-        },
-        () => {
-          // Invalidate and refetch orders when any change occurs
-          queryClient.invalidateQueries({ queryKey: ['admin-orders', campus.id] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [campus?.id, queryClient]);
-
-  return useQuery({
-    queryKey: ['admin-orders', campus?.id],
+  const query = useQuery({
+    queryKey: ['admin-orders', campusId],
     queryFn: async () => {
-      if (!campus?.id) return [];
+      if (!campusId) return [];
 
       const { data, error } = await supabase
         .from('orders')
@@ -299,7 +274,7 @@ export function useAdminOrders() {
             quantity
           )
         `)
-        .eq('campus_id', campus.id)
+        .eq('campus_id', campusId)
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -318,8 +293,35 @@ export function useAdminOrders() {
         qr_code: order.qr_code,
       }));
     },
-    enabled: !!campus?.id,
+    enabled: !!campusId,
   });
+
+  // Set up real-time subscription after query is defined
+  useEffect(() => {
+    if (!campusId) return;
+
+    const channel = supabase
+      .channel(`admin-orders-${campusId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders',
+          filter: `campus_id=eq.${campusId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['admin-orders', campusId] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [campusId, queryClient]);
+
+  return query;
 }
 
 // Update order status
