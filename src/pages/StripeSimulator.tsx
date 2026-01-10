@@ -1,10 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { CheckCircle2, Loader2, CreditCard, Lock, X, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Loader2, CreditCard, Lock, X, AlertCircle, Smartphone, Building2, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
+
+type PaymentMethod = 'card' | 'upi' | 'netbanking' | 'wallet';
+type Stage = 'loading' | 'methods' | 'card' | 'upi' | 'netbanking' | 'wallet' | 'processing' | 'success' | 'error';
+
+const banks = [
+  { id: 'hdfc', name: 'HDFC Bank', logo: '🏦' },
+  { id: 'icici', name: 'ICICI Bank', logo: '🏛️' },
+  { id: 'sbi', name: 'State Bank of India', logo: '🏪' },
+  { id: 'axis', name: 'Axis Bank', logo: '🏢' },
+  { id: 'kotak', name: 'Kotak Mahindra', logo: '💼' },
+];
+
+const wallets = [
+  { id: 'paytm', name: 'Paytm', color: '#00BAF2' },
+  { id: 'amazonpay', name: 'Amazon Pay', color: '#FF9900' },
+  { id: 'mobikwik', name: 'MobiKwik', color: '#5C2D91' },
+  { id: 'freecharge', name: 'Freecharge', color: '#5F259F' },
+];
 
 export default function StripeSimulator() {
   const navigate = useNavigate();
@@ -13,15 +31,26 @@ export default function StripeSimulator() {
   const amount = searchParams.get('amount');
   const txnId = searchParams.get('txnId');
   
-  const [stage, setStage] = useState<'loading' | 'card' | 'processing' | 'success' | 'error'>('loading');
+  const [stage, setStage] = useState<Stage>('loading');
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('card');
   const [progress, setProgress] = useState(0);
+  
+  // Card fields
   const [cardNumber, setCardNumber] = useState('');
   const [expiry, setExpiry] = useState('');
   const [cvc, setCvc] = useState('');
   const [cardError, setCardError] = useState('');
+  
+  // UPI field
+  const [upiId, setUpiId] = useState('');
+  const [upiError, setUpiError] = useState('');
+  
+  // Bank/Wallet selection
+  const [selectedBank, setSelectedBank] = useState('');
+  const [selectedWallet, setSelectedWallet] = useState('');
 
   useEffect(() => {
-    const timer = setTimeout(() => setStage('card'), 1000);
+    const timer = setTimeout(() => setStage('methods'), 1000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -44,7 +73,7 @@ export default function StripeSimulator() {
     return v;
   };
 
-  const markOrderAsPaid = async () => {
+  const markOrderAsPaid = async (method: string) => {
     if (!orderId) return;
     
     const { error } = await supabase
@@ -52,7 +81,7 @@ export default function StripeSimulator() {
       .update({ 
         payment_status: 'paid',
         status: 'confirmed',
-        payment_method: 'STRIPE_SANDBOX',
+        payment_method: `STRIPE_${method.toUpperCase()}`,
         notes: `Sandbox TXN: ${txnId}`
       })
       .eq('id', orderId);
@@ -62,25 +91,9 @@ export default function StripeSimulator() {
     }
   };
 
-  const handlePay = () => {
-    // Basic validation
-    if (cardNumber.replace(/\s/g, '').length < 16) {
-      setCardError('Please enter a valid card number');
-      return;
-    }
-    if (expiry.length < 5) {
-      setCardError('Please enter a valid expiry date');
-      return;
-    }
-    if (cvc.length < 3) {
-      setCardError('Please enter a valid CVC');
-      return;
-    }
-
-    setCardError('');
+  const processPayment = async (method: string) => {
     setStage('processing');
     
-    // Simulate payment processing with progress
     let p = 0;
     const interval = setInterval(() => {
       p += Math.random() * 20 + 10;
@@ -89,9 +102,9 @@ export default function StripeSimulator() {
         clearInterval(interval);
         setProgress(100);
         setTimeout(async () => {
-          // Simulate 90% success rate
-          if (Math.random() > 0.1) {
-            await markOrderAsPaid();
+          // 95% success rate in sandbox
+          if (Math.random() > 0.05) {
+            await markOrderAsPaid(method);
             setStage('success');
             setTimeout(() => {
               navigate(`/order-success?orderId=${orderId}`);
@@ -106,8 +119,51 @@ export default function StripeSimulator() {
     }, 200);
   };
 
+  const handleCardPay = () => {
+    if (cardNumber.replace(/\s/g, '').length < 16) {
+      setCardError('Please enter a valid card number');
+      return;
+    }
+    if (expiry.length < 5) {
+      setCardError('Please enter a valid expiry date');
+      return;
+    }
+    if (cvc.length < 3) {
+      setCardError('Please enter a valid CVC');
+      return;
+    }
+    setCardError('');
+    processPayment('card');
+  };
+
+  const handleUpiPay = () => {
+    const upiRegex = /^[\w.-]+@[\w]+$/;
+    if (!upiRegex.test(upiId)) {
+      setUpiError('Please enter a valid UPI ID (e.g., name@upi)');
+      return;
+    }
+    setUpiError('');
+    processPayment('upi');
+  };
+
+  const handleBankPay = () => {
+    if (!selectedBank) return;
+    processPayment('netbanking');
+  };
+
+  const handleWalletPay = () => {
+    if (!selectedWallet) return;
+    processPayment('wallet');
+  };
+
   const handleCancel = () => {
     navigate('/checkout');
+  };
+
+  const handleBack = () => {
+    setStage('methods');
+    setCardError('');
+    setUpiError('');
   };
 
   return (
@@ -134,7 +190,7 @@ export default function StripeSimulator() {
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center p-6">
+      <main className="flex-1 flex items-center justify-center p-6 overflow-y-auto">
         <AnimatePresence mode="wait">
           {stage === 'loading' && (
             <motion.div
@@ -149,9 +205,10 @@ export default function StripeSimulator() {
             </motion.div>
           )}
 
-          {stage === 'card' && (
+          {/* Payment Methods Selection */}
+          {stage === 'methods' && (
             <motion.div
-              key="card"
+              key="methods"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
@@ -165,12 +222,99 @@ export default function StripeSimulator() {
                   <p className="text-xs opacity-60 mt-2">Order #{orderId?.slice(-8)}</p>
                 </div>
 
-                {/* Card Form */}
+                {/* Payment Methods */}
+                <div className="p-6 space-y-3">
+                  <p className="text-sm font-medium text-gray-700 mb-4">Select payment method</p>
+                  
+                  {/* Card */}
+                  <button
+                    onClick={() => { setSelectedMethod('card'); setStage('card'); }}
+                    className="w-full p-4 rounded-xl border-2 border-gray-200 hover:border-[#635bff] transition-colors flex items-center gap-4 group"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
+                      <CreditCard className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-semibold text-gray-900">Credit / Debit Card</p>
+                      <p className="text-xs text-gray-500">Visa, Mastercard, RuPay</p>
+                    </div>
+                    <div className="text-gray-400 group-hover:text-[#635bff]">→</div>
+                  </button>
+
+                  {/* UPI */}
+                  <button
+                    onClick={() => { setSelectedMethod('upi'); setStage('upi'); }}
+                    className="w-full p-4 rounded-xl border-2 border-gray-200 hover:border-[#635bff] transition-colors flex items-center gap-4 group"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                      <Smartphone className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-semibold text-gray-900">UPI</p>
+                      <p className="text-xs text-gray-500">GPay, PhonePe, Paytm UPI</p>
+                    </div>
+                    <div className="text-gray-400 group-hover:text-[#635bff]">→</div>
+                  </button>
+
+                  {/* Net Banking */}
+                  <button
+                    onClick={() => { setSelectedMethod('netbanking'); setStage('netbanking'); }}
+                    className="w-full p-4 rounded-xl border-2 border-gray-200 hover:border-[#635bff] transition-colors flex items-center gap-4 group"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                      <Building2 className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-semibold text-gray-900">Net Banking</p>
+                      <p className="text-xs text-gray-500">All major banks supported</p>
+                    </div>
+                    <div className="text-gray-400 group-hover:text-[#635bff]">→</div>
+                  </button>
+
+                  {/* Wallets */}
+                  <button
+                    onClick={() => { setSelectedMethod('wallet'); setStage('wallet'); }}
+                    className="w-full p-4 rounded-xl border-2 border-gray-200 hover:border-[#635bff] transition-colors flex items-center gap-4 group"
+                  >
+                    <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-pink-500 to-rose-600 flex items-center justify-center">
+                      <Wallet className="w-6 h-6 text-white" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-semibold text-gray-900">Wallets</p>
+                      <p className="text-xs text-gray-500">Paytm, Amazon Pay, MobiKwik</p>
+                    </div>
+                    <div className="text-gray-400 group-hover:text-[#635bff]">→</div>
+                  </button>
+
+                  <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-4">
+                    <Lock size={12} />
+                    <span>Secured by Stripe (Sandbox)</span>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Card Form */}
+          {stage === 'card' && (
+            <motion.div
+              key="card"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="w-full max-w-md"
+            >
+              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                <div className="p-4 border-b border-gray-100 flex items-center gap-3">
+                  <button onClick={handleBack} className="text-gray-500 hover:text-gray-700">←</button>
+                  <CreditCard className="w-5 h-5 text-[#635bff]" />
+                  <span className="font-semibold">Card Payment</span>
+                  <span className="ml-auto font-bold text-[#635bff]">₹{amount}</span>
+                </div>
+
                 <div className="p-6 space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                      Card number
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Card number</label>
                     <div className="relative">
                       <Input
                         value={cardNumber}
@@ -185,9 +329,7 @@ export default function StripeSimulator() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        Expiry
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Expiry</label>
                       <Input
                         value={expiry}
                         onChange={(e) => setExpiry(formatExpiry(e.target.value))}
@@ -197,9 +339,7 @@ export default function StripeSimulator() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                        CVC
-                      </label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1.5">CVC</label>
                       <Input
                         value={cvc}
                         onChange={(e) => setCvc(e.target.value.replace(/\D/g, '').slice(0, 4))}
@@ -218,31 +358,184 @@ export default function StripeSimulator() {
                     </p>
                   )}
 
-                  <div className="pt-2">
-                    <Button
-                      onClick={handlePay}
-                      className="w-full h-14 text-lg font-semibold rounded-xl bg-[#635bff] hover:bg-[#5851ea] text-white"
-                    >
-                      Pay ₹{amount}
-                    </Button>
-                  </div>
+                  <Button
+                    onClick={handleCardPay}
+                    className="w-full h-14 text-lg font-semibold rounded-xl bg-[#635bff] hover:bg-[#5851ea] text-white"
+                  >
+                    Pay ₹{amount}
+                  </Button>
 
-                  <div className="flex items-center justify-center gap-2 text-xs text-gray-400 pt-2">
-                    <Lock size={12} />
-                    <span>Secured by Stripe (Sandbox)</span>
-                  </div>
-
-                  {/* Test Card Info */}
-                  <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                    <p className="text-xs font-semibold text-amber-800 mb-1">Test Card Numbers:</p>
+                  <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+                    <p className="text-xs font-semibold text-amber-800 mb-1">Test Card:</p>
                     <p className="text-xs text-amber-700 font-mono">4242 4242 4242 4242</p>
-                    <p className="text-xs text-amber-600 mt-1">Any future expiry, any 3-digit CVC</p>
+                    <p className="text-xs text-amber-600 mt-1">Any future expiry, any CVC</p>
                   </div>
                 </div>
               </div>
             </motion.div>
           )}
 
+          {/* UPI Form */}
+          {stage === 'upi' && (
+            <motion.div
+              key="upi"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="w-full max-w-md"
+            >
+              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                <div className="p-4 border-b border-gray-100 flex items-center gap-3">
+                  <button onClick={handleBack} className="text-gray-500 hover:text-gray-700">←</button>
+                  <Smartphone className="w-5 h-5 text-green-600" />
+                  <span className="font-semibold">UPI Payment</span>
+                  <span className="ml-auto font-bold text-[#635bff]">₹{amount}</span>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">UPI ID</label>
+                    <Input
+                      value={upiId}
+                      onChange={(e) => setUpiId(e.target.value.toLowerCase())}
+                      placeholder="yourname@upi"
+                      className="h-12 text-lg"
+                    />
+                  </div>
+
+                  {upiError && (
+                    <p className="text-sm text-red-500 flex items-center gap-1.5">
+                      <AlertCircle size={14} />
+                      {upiError}
+                    </p>
+                  )}
+
+                  <Button
+                    onClick={handleUpiPay}
+                    className="w-full h-14 text-lg font-semibold rounded-xl bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Verify & Pay ₹{amount}
+                  </Button>
+
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                    <p className="text-xs font-semibold text-green-800 mb-1">Test UPI IDs:</p>
+                    <p className="text-xs text-green-700 font-mono">success@upi, test@ybl</p>
+                  </div>
+
+                  <div className="flex justify-center gap-4 pt-2">
+                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/UPI-Logo-vector.svg/1200px-UPI-Logo-vector.svg.png" alt="UPI" className="h-6 opacity-50" />
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Net Banking */}
+          {stage === 'netbanking' && (
+            <motion.div
+              key="netbanking"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="w-full max-w-md"
+            >
+              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                <div className="p-4 border-b border-gray-100 flex items-center gap-3">
+                  <button onClick={handleBack} className="text-gray-500 hover:text-gray-700">←</button>
+                  <Building2 className="w-5 h-5 text-amber-600" />
+                  <span className="font-semibold">Net Banking</span>
+                  <span className="ml-auto font-bold text-[#635bff]">₹{amount}</span>
+                </div>
+
+                <div className="p-6 space-y-3">
+                  <p className="text-sm text-gray-600 mb-4">Select your bank</p>
+                  
+                  {banks.map((bank) => (
+                    <button
+                      key={bank.id}
+                      onClick={() => setSelectedBank(bank.id)}
+                      className={`w-full p-4 rounded-xl border-2 transition-colors flex items-center gap-4 ${
+                        selectedBank === bank.id 
+                          ? 'border-[#635bff] bg-[#635bff]/5' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <span className="text-2xl">{bank.logo}</span>
+                      <span className="font-medium text-gray-900">{bank.name}</span>
+                      {selectedBank === bank.id && (
+                        <CheckCircle2 className="w-5 h-5 text-[#635bff] ml-auto" />
+                      )}
+                    </button>
+                  ))}
+
+                  <Button
+                    onClick={handleBankPay}
+                    disabled={!selectedBank}
+                    className="w-full h-14 text-lg font-semibold rounded-xl bg-amber-600 hover:bg-amber-700 text-white mt-4 disabled:opacity-50"
+                  >
+                    Continue to Bank
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Wallets */}
+          {stage === 'wallet' && (
+            <motion.div
+              key="wallet"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="w-full max-w-md"
+            >
+              <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
+                <div className="p-4 border-b border-gray-100 flex items-center gap-3">
+                  <button onClick={handleBack} className="text-gray-500 hover:text-gray-700">←</button>
+                  <Wallet className="w-5 h-5 text-pink-600" />
+                  <span className="font-semibold">Wallet Payment</span>
+                  <span className="ml-auto font-bold text-[#635bff]">₹{amount}</span>
+                </div>
+
+                <div className="p-6 space-y-3">
+                  <p className="text-sm text-gray-600 mb-4">Select wallet</p>
+                  
+                  {wallets.map((wallet) => (
+                    <button
+                      key={wallet.id}
+                      onClick={() => setSelectedWallet(wallet.id)}
+                      className={`w-full p-4 rounded-xl border-2 transition-colors flex items-center gap-4 ${
+                        selectedWallet === wallet.id 
+                          ? 'border-[#635bff] bg-[#635bff]/5' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div 
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
+                        style={{ backgroundColor: wallet.color }}
+                      >
+                        {wallet.name[0]}
+                      </div>
+                      <span className="font-medium text-gray-900">{wallet.name}</span>
+                      {selectedWallet === wallet.id && (
+                        <CheckCircle2 className="w-5 h-5 text-[#635bff] ml-auto" />
+                      )}
+                    </button>
+                  ))}
+
+                  <Button
+                    onClick={handleWalletPay}
+                    disabled={!selectedWallet}
+                    className="w-full h-14 text-lg font-semibold rounded-xl bg-pink-600 hover:bg-pink-700 text-white mt-4 disabled:opacity-50"
+                  >
+                    Pay with Wallet
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Processing */}
           {stage === 'processing' && (
             <motion.div
               key="processing"
@@ -257,7 +550,6 @@ export default function StripeSimulator() {
               <p className="font-semibold text-gray-900 mb-2">Processing Payment</p>
               <p className="text-gray-500 text-sm mb-6">Please don't close this window...</p>
               
-              {/* Progress Bar */}
               <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
                 <motion.div 
                   className="h-full bg-[#635bff]"
@@ -270,6 +562,7 @@ export default function StripeSimulator() {
             </motion.div>
           )}
 
+          {/* Success */}
           {stage === 'success' && (
             <motion.div
               key="success"
@@ -298,6 +591,7 @@ export default function StripeSimulator() {
             </motion.div>
           )}
 
+          {/* Error */}
           {stage === 'error' && (
             <motion.div
               key="error"
@@ -309,7 +603,7 @@ export default function StripeSimulator() {
                 <X className="w-12 h-12 text-red-600" />
               </div>
               <p className="font-bold text-xl text-gray-900 mb-1">Payment Failed</p>
-              <p className="text-gray-500 mb-6">Your card was declined. Please try again.</p>
+              <p className="text-gray-500 mb-6">Transaction could not be completed. Please try again.</p>
               <div className="flex gap-3">
                 <Button
                   variant="outline"
@@ -321,7 +615,7 @@ export default function StripeSimulator() {
                 <Button
                   onClick={() => {
                     setProgress(0);
-                    setStage('card');
+                    setStage('methods');
                   }}
                   className="flex-1 h-12 bg-[#635bff] hover:bg-[#5851ea]"
                 >
