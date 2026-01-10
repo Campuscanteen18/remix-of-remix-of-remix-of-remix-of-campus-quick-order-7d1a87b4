@@ -22,12 +22,6 @@ export function HeroBanner() {
             <span className="text-[10px] font-bold uppercase tracking-wide">Quick Order</span>
           </div>
         </div>
-        <h2 className="font-display text-xl md:text-2xl font-bold mb-1 tracking-tight">
-          Skip the Queue
-        </h2>
-        <p className="text-sm text-background/80 max-w-xs leading-relaxed">
-          Order now, pay online & pick up with your QR code
-        </p>
       </div>
     </div>
   );
