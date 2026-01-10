@@ -56,11 +56,11 @@ const periodNames: Record<string, string> = {
   dinner: 'Dinner',
 };
 
-const periodTimes: Record<string, string> = {
-  breakfast: '7 AM - 11 AM',
-  lunch: '11 AM - 3 PM',
-  snacks: '3 PM - 6 PM',
-  dinner: '6 PM - 10 PM',
+// Format hour for display
+const formatHour = (hour: number) => {
+  const suffix = hour >= 12 ? 'PM' : 'AM';
+  const h = hour % 12 || 12;
+  return `${h}${suffix}`;
 };
 
 export function useTodayAnalytics() {
@@ -69,41 +69,49 @@ export function useTodayAnalytics() {
   return useQuery({
     queryKey: ['today-analytics', campus?.id],
     queryFn: async (): Promise<TodayAnalytics> => {
-      if (!campus?.id) {
-        return {
-          totalOrders: 0,
-          totalRevenue: 0,
-          avgOrderValue: 0,
-          periodBreakdown: [],
-          topItems: [],
-          hourlyData: [],
-          peakHour: '-',
-          completionRate: 0,
-          pendingOrders: 0,
-          preparingOrders: 0,
-          readyOrders: 0,
-          collectedOrders: 0,
-          currentPeriod: '',
-          dateString: '',
-        };
-      }
-
-      // Get today's boundaries
+      // Get current date info
       const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
-
-      // Current time period
       const currentHour = now.getHours();
       const currentPeriod = getTimePeriod(currentHour);
-
-      // Format date string
       const dateString = now.toLocaleDateString('en-IN', { 
         weekday: 'long', 
         day: 'numeric', 
         month: 'long', 
         year: 'numeric' 
       });
+
+      // Default empty data with current period highlighted
+      const createDefaultData = (): TodayAnalytics => ({
+        totalOrders: 0,
+        totalRevenue: 0,
+        avgOrderValue: 0,
+        periodBreakdown: ['breakfast', 'lunch', 'snacks', 'dinner'].map(period => ({
+          period: periodNames[period],
+          periodId: period,
+          orders: 0,
+          revenue: 0,
+          percentage: 0,
+          isActive: period === currentPeriod,
+        })),
+        topItems: [],
+        hourlyData: [],
+        peakHour: '-',
+        completionRate: 0,
+        pendingOrders: 0,
+        preparingOrders: 0,
+        readyOrders: 0,
+        collectedOrders: 0,
+        currentPeriod: periodNames[currentPeriod] || 'Off Hours',
+        dateString,
+      });
+
+      if (!campus?.id) {
+        return createDefaultData();
+      }
+
+      // Get today's boundaries
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
       // Fetch orders with items
       const { data: orders, error } = await supabase
@@ -116,18 +124,21 @@ export function useTodayAnalytics() {
         .gte('created_at', todayStart.toISOString())
         .lte('created_at', todayEnd.toISOString());
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching today analytics:', error);
+        return createDefaultData();
+      }
 
       const ordersList = orders || [];
       const completedOrders = ordersList.filter(o => o.status !== 'cancelled');
-      const collectedOrders = ordersList.filter(o => o.status === 'collected');
+      const collectedOrdersList = ordersList.filter(o => o.status === 'collected');
 
       // Calculate totals
       const totalOrders = completedOrders.length;
       const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total), 0);
       const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
       const completionRate = ordersList.length > 0 
-        ? Math.round((collectedOrders.length / ordersList.length) * 100) 
+        ? Math.round((collectedOrdersList.length / ordersList.length) * 100) 
         : 0;
 
       // Order status counts
@@ -170,7 +181,8 @@ export function useTodayAnalytics() {
         }
 
         // Item counts
-        (order.order_items || []).forEach((item: { name: string; quantity: number; price: number }) => {
+        const items = order.order_items as Array<{ name: string; quantity: number; price: number }> || [];
+        items.forEach((item) => {
           if (!itemCounts[item.name]) {
             itemCounts[item.name] = { quantity: 0, revenue: 0 };
           }
@@ -196,12 +208,6 @@ export function useTodayAnalytics() {
         .slice(0, 5);
 
       // Hourly data for chart
-      const formatHour = (hour: number) => {
-        const suffix = hour >= 12 ? 'PM' : 'AM';
-        const h = hour % 12 || 12;
-        return `${h}${suffix}`;
-      };
-
       const hourlyData: HourlyData[] = [];
       for (let h = 7; h <= 21; h++) {
         hourlyData.push({
@@ -234,12 +240,13 @@ export function useTodayAnalytics() {
         pendingOrders,
         preparingOrders,
         readyOrders,
-        collectedOrders: collectedOrders.length,
+        collectedOrders: collectedOrdersList.length,
         currentPeriod: periodNames[currentPeriod] || 'Off Hours',
         dateString,
       };
     },
     enabled: !!campus?.id,
-    refetchInterval: 30000, // Refresh every 30 seconds for real-time updates
+    refetchInterval: 30000,
+    staleTime: 10000,
   });
 }
