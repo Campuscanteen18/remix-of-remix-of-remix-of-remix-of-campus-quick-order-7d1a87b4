@@ -226,9 +226,18 @@ export function useOrders(): UseOrdersReturn {
     }
   }, [campus?.id, addOrder]);
 
-  // Filter only active orders (not collected)
+  // Check if order is older than 48 hours
+  const isOrderOlderThan48Hours = (createdAt: Date) => {
+    const now = new Date();
+    const fortyEightHoursMs = 48 * 60 * 60 * 1000;
+    return now.getTime() - createdAt.getTime() > fortyEightHoursMs;
+  };
+
+  // Filter only active orders (not collected, not used, and not older than 48 hours)
   const activeOrders = orders.filter(order => 
-    order.status !== 'collected' && !order.isUsed
+    order.status !== 'collected' && 
+    !order.isUsed && 
+    !isOrderOlderThan48Hours(order.createdAt)
   );
 
   return {
