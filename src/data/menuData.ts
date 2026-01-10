@@ -10,10 +10,10 @@ export const categories: Category[] = [
 ];
 
 export const timePeriods: TimePeriod[] = [
-  { id: 'breakfast', name: 'Breakfast', startHour: 7, endHour: 11, icon: '🌅' },
-  { id: 'lunch', name: 'Lunch', startHour: 11, endHour: 15, icon: '☀️' },
-  { id: 'snacks', name: 'Evening Snacks', startHour: 15, endHour: 18, icon: '🌤️' },
-  { id: 'dinner', name: 'Dinner', startHour: 18, endHour: 22, icon: '🌙' },
+  { id: 'breakfast', name: 'Breakfast', startHour: 8, startMinute: 0, endHour: 11, endMinute: 0, icon: '🌅' },
+  { id: 'lunch', name: 'Lunch', startHour: 11, startMinute: 15, endHour: 14, endMinute: 45, icon: '☀️' },
+  { id: 'snacks', name: 'Snacks', startHour: 15, startMinute: 0, endHour: 17, endMinute: 0, icon: '🌤️' },
+  { id: 'dinner', name: 'Dinner', startHour: 18, startMinute: 0, endHour: 22, endMinute: 0, icon: '🌙' },
 ];
 
 export const menuItems: MenuItem[] = [
@@ -135,8 +135,14 @@ export const menuItems: MenuItem[] = [
 ];
 
 export function getCurrentTimePeriod(): TimePeriod | null {
-  const hour = new Date().getHours();
-  return timePeriods.find(period => hour >= period.startHour && hour < period.endHour) || null;
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  
+  return timePeriods.find(period => {
+    const startMinutes = period.startHour * 60 + period.startMinute;
+    const endMinutes = period.endHour * 60 + period.endMinute;
+    return currentMinutes >= startMinutes && currentMinutes < endMinutes;
+  }) || null;
 }
 
 export function getPopularItemsNow(): MenuItem[] {

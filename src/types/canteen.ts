@@ -33,7 +33,9 @@ export interface TimePeriod {
   id: string;
   name: string;
   startHour: number;
+  startMinute: number;
   endHour: number;
+  endMinute: number;
   icon: string;
 }
 

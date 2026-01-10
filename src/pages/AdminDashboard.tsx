@@ -71,9 +71,9 @@ const ADMIN_CATEGORIES = [
 ] as const;
 
 const TIME_PERIODS = [
-  { id: "breakfast", name: "Breakfast (7-11 AM)" },
-  { id: "lunch", name: "Lunch (11 AM - 3 PM)" },
-  { id: "snacks", name: "Snacks (3-6 PM)" },
+  { id: "breakfast", name: "Breakfast (8-11 AM)" },
+  { id: "lunch", name: "Lunch (11:15 AM - 2:45 PM)" },
+  { id: "snacks", name: "Snacks (3-5 PM)" },
   { id: "dinner", name: "Dinner (6-10 PM)" },
 ];
 
