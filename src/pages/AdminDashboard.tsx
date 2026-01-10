@@ -70,6 +70,7 @@ export default function AdminDashboard() {
   const { logout: authLogout } = useAuth();
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [orderSearch, setOrderSearch] = useState("");
   const [profileData, setProfileData] = useState<{
     full_name: string | null;
     email: string | null;
@@ -589,8 +590,14 @@ export default function AdminDashboard() {
           {/* Orders Tab */}
           <TabsContent value="orders" className="space-y-4">
             <Card className="rounded-2xl card-shadow">
-              <CardHeader>
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <CardTitle className="text-lg">Recent Orders</CardTitle>
+                <Input
+                  placeholder="Search by last 4 digits..."
+                  value={orderSearch}
+                  onChange={(e) => setOrderSearch(e.target.value)}
+                  className="w-full sm:w-48 h-9 rounded-full"
+                />
               </CardHeader>
               <CardContent>
                 {ordersLoading ? (
@@ -601,7 +608,15 @@ export default function AdminDashboard() {
                   <p className="text-center py-8 text-muted-foreground">No orders yet</p>
                 ) : (
                   <div className="space-y-3">
-                    {orders.slice(0, 20).map((order) => (
+                    {orders
+                      .filter((order) => {
+                        if (!orderSearch.trim()) return true;
+                        const orderNum = order.order_number || order.id;
+                        const lastFour = orderNum.slice(-4).toLowerCase();
+                        return lastFour.includes(orderSearch.toLowerCase().trim());
+                      })
+                      .slice(0, 20)
+                      .map((order) => (
                       <div
                         key={order.id}
                         className="p-4 rounded-2xl bg-muted/50"
