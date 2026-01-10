@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Receipt,
   Wallet,
+  CreditCard,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,7 +31,7 @@ export default function Checkout() {
   const { cart, totalPrice, totalItems, clearCart, setCurrentOrder, updateQuantity, removeFromCart } = useCart();
   const [isCheckingStock, setIsCheckingStock] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
-  const [isInitiatingPhonePe, setIsInitiatingPhonePe] = useState(false);
+  const [isInitiatingPayment, setIsInitiatingPayment] = useState(false);
   const { toast } = useToast();
   const { checkStock } = useStockCheck();
   const { createOrder, isCreating } = useOrders();
@@ -103,7 +104,7 @@ export default function Checkout() {
         return;
       }
 
-      await handlePhonePePayment();
+      await handleStripePayment();
     } catch (error) {
       toast({
         title: "Error",
@@ -115,14 +116,14 @@ export default function Checkout() {
     }
   };
 
-  const handlePhonePePayment = async () => {
-    setIsInitiatingPhonePe(true);
+  const handleStripePayment = async () => {
+    setIsInitiatingPayment(true);
 
     try {
       const order = await createOrder({
         items: [...cart],
         total: totalPrice,
-        paymentMethod: "PHONEPE",
+        paymentMethod: "STRIPE",
       });
 
       if (!order) {
@@ -136,7 +137,7 @@ export default function Checkout() {
 
       const redirectUrl = `${window.location.origin}/order-success?orderId=${order.id}`;
 
-      const { data, error } = await supabase.functions.invoke("phonepe-payment", {
+      const { data, error } = await supabase.functions.invoke("stripe-payment", {
         body: {
           amount: totalPrice,
           orderId: order.id,
@@ -157,31 +158,20 @@ export default function Checkout() {
       setCurrentOrder(order);
       clearCart();
 
-      if (data.demoMode) {
-        toast({
-          title: "Payment Successful!",
-          description: "Demo payment processed. Redirecting...",
-        });
-      }
-
       if (data.redirectUrl) {
-        if (data.demoMode) {
-          navigate("/order-success");
-        } else {
-          window.location.href = data.redirectUrl;
-        }
+        window.location.href = data.redirectUrl;
       } else {
         navigate("/order-success");
       }
     } catch (error) {
-      console.error("PhonePe payment error:", error);
+      console.error("Stripe payment error:", error);
       toast({
         title: "Error",
         description: "Payment initiation failed. Please try again.",
         variant: "destructive",
       });
     } finally {
-      setIsInitiatingPhonePe(false);
+      setIsInitiatingPayment(false);
     }
   };
 
@@ -331,27 +321,23 @@ export default function Checkout() {
             </div>
 
             <motion.div variants={itemVariants} className="relative group cursor-pointer">
-              <div className="absolute inset-0 bg-[#5f259f]/5 rounded-2xl ring-2 ring-[#5f259f] pointer-events-none" />
+              <div className="absolute inset-0 bg-[#635bff]/5 rounded-2xl ring-2 ring-[#635bff] pointer-events-none" />
               <div className="relative p-4 flex items-center gap-4 bg-card rounded-2xl">
-                <div className="h-12 w-12 rounded-xl bg-white border border-border/50 p-2 flex items-center justify-center shadow-sm">
-                  <img
-                    src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/PhonePe_Logo.svg/1200px-PhonePe_Logo.svg.png"
-                    alt="PhonePe"
-                    className="w-full h-full object-contain"
-                  />
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#635bff] to-[#8b5cf6] p-2 flex items-center justify-center shadow-sm">
+                  <CreditCard className="w-6 h-6 text-white" />
                 </div>
 
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold">PhonePe UPI</h3>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-yellow-500/10 text-yellow-600 border border-yellow-500/20">
+                    <h3 className="font-bold">Stripe Payments</h3>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">
                       TEST
                     </span>
                   </div>
-                  <p className="text-xs text-muted-foreground">Fast & Secure Payment</p>
+                  <p className="text-xs text-muted-foreground">Cards, UPI & More</p>
                 </div>
 
-                <div className="h-5 w-5 rounded-full bg-[#5f259f] flex items-center justify-center">
+                <div className="h-5 w-5 rounded-full bg-[#635bff] flex items-center justify-center">
                   <CheckCircle2 size={12} className="text-white" />
                 </div>
               </div>
@@ -375,21 +361,21 @@ export default function Checkout() {
 
           <motion.div className="flex-[1.5]" whileTap={{ scale: 0.98 }}>
             <Button
-              className="w-full h-14 rounded-xl text-base font-bold bg-[#5f259f] hover:bg-[#4a1d7a] text-white shadow-lg shadow-[#5f259f]/20 transition-all"
+              className="w-full h-14 rounded-xl text-base font-bold bg-[#635bff] hover:bg-[#5851ea] text-white shadow-lg shadow-[#635bff]/20 transition-all"
               onClick={handleOpenGateway}
-              disabled={isCreating || isCheckingStock || isInitiatingPhonePe}
+              disabled={isCreating || isCheckingStock || isInitiatingPayment}
             >
               {isCheckingStock ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="animate-spin" size={18} /> Checking...
                 </span>
-              ) : isInitiatingPhonePe ? (
+              ) : isInitiatingPayment ? (
                 <span className="flex items-center gap-2">
                   <Loader2 className="animate-spin" size={18} /> Processing...
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
-                  Pay Now <ArrowLeft className="rotate-180" size={18} />
+                  Pay with Stripe <ArrowLeft className="rotate-180" size={18} />
                 </span>
               )}
             </Button>

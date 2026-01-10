@@ -1,9 +1,6 @@
 project_id = "dlaudfrhokdjtcmnhhap"
 
-[functions.phonepe-payment]
-verify_jwt = false
-
-[functions.phonepe-webhook]
+[functions.stripe-payment]
 verify_jwt = false
 
 [functions.admin-auth]

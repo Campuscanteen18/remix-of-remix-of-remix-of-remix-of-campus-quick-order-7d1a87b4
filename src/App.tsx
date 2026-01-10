@@ -20,9 +20,8 @@ import SelectCampus from "./pages/SelectCampus";
 import Menu from "./pages/Menu";
 import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
-import PhonePeSimulator from "./pages/PhonePeSimulator";
+import StripeSimulator from "./pages/StripeSimulator";
 import AdminDashboard from "./pages/AdminDashboard";
-
 import DedicatedScanner from "./pages/DedicatedScanner";
 import MyOrders from "./pages/MyOrders";
 import Profile from "./pages/Profile";
@@ -81,8 +80,8 @@ const App = () => (
                                 <OrderSuccess />
                               </CampusGate>
                             } />
-                            <Route path="/phonepe-sandbox" element={
-                              <PhonePeSimulator />
+                            <Route path="/stripe-sandbox" element={
+                              <StripeSimulator />
                             } />
                             <Route path="/my-orders" element={
                               <CampusGate>
