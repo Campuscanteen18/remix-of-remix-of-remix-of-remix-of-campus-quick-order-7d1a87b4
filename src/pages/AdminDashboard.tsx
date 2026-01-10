@@ -699,7 +699,7 @@ export default function AdminDashboard() {
               );
             })()}
 
-            {/* Orders List */}
+            {/* Orders List - Grouped by Time Period */}
             <Card className="rounded-2xl card-shadow">
               <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <CardTitle className="text-lg">All Orders</CardTitle>
@@ -718,83 +718,138 @@ export default function AdminDashboard() {
                 ) : orders.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">No orders yet</p>
                 ) : (
-                  <div className="space-y-3">
-                    {orders
-                      .filter((order) => {
-                        if (!orderSearch.trim()) return true;
-                        const orderNum = order.order_number || order.id;
-                        const lastFour = orderNum.slice(-4).toLowerCase();
-                        return lastFour.includes(orderSearch.toLowerCase().trim());
-                      })
-                      .slice(0, 20)
-                      .map((order) => (
-                      <div
-                        key={order.id}
-                        className="p-4 rounded-2xl bg-muted/50"
-                      >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-primary text-sm sm:text-base">
-                                #{order.order_number || order.id.slice(-8).toUpperCase()}
-                              </span>
-                              <span
-                                className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                                  order.status === "collected"
-                                    ? "bg-green-500/10 text-green-600"
-                                    : order.status === "cancelled"
-                                      ? "bg-destructive/10 text-destructive"
-                                      : order.status === "ready"
-                                        ? "bg-secondary/10 text-secondary"
-                                        : order.status === "confirmed"
-                                          ? "bg-blue-500/10 text-blue-600"
-                                          : "bg-amber-500/10 text-amber-600"
-                                }`}
-                              >
-                                {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2 mt-1.5">
-                              <span className="text-sm font-medium">
-                                {order.user_name || "Guest"}
-                              </span>
-                              <span className="text-muted-foreground">•</span>
-                              <span className="text-sm font-bold text-primary">
-                                ₹{order.total}
-                              </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {new Date(order.created_at).toLocaleDateString("en-IN", {
-                                day: "2-digit",
-                                month: "short",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        {/* Order Items */}
-                        {order.items && order.items.length > 0 && (
-                          <div className="mt-3 pt-3 border-t border-border/50">
-                            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Items</p>
-                            <div className="flex flex-wrap gap-2">
-                              {order.items.map((item, idx) => (
-                                <span
-                                  key={idx}
-                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background text-xs font-medium border border-border/50"
-                                >
-                                  <span className="text-foreground">{item.name}</span>
-                                  <span className="text-muted-foreground">×{item.quantity}</span>
+                  (() => {
+                    // Helper to get time period from order
+                    const getOrderTimePeriod = (dateStr: string) => {
+                      const hour = new Date(dateStr).getHours();
+                      if (hour >= 7 && hour < 11) return 'breakfast';
+                      if (hour >= 11 && hour < 15) return 'lunch';
+                      if (hour >= 15 && hour < 18) return 'snacks';
+                      if (hour >= 18 && hour < 22) return 'dinner';
+                      return 'other';
+                    };
+
+                    const periodOrder = ['breakfast', 'lunch', 'snacks', 'dinner', 'other'];
+                    const periodLabels: Record<string, { name: string; icon: typeof Sun; color: string }> = {
+                      breakfast: { name: 'Breakfast', icon: Sun, color: 'bg-amber-500/10 text-amber-600' },
+                      lunch: { name: 'Lunch', icon: Utensils, color: 'bg-blue-500/10 text-blue-600' },
+                      snacks: { name: 'Snacks', icon: Cookie, color: 'bg-purple-500/10 text-purple-600' },
+                      dinner: { name: 'Dinner', icon: Utensils, color: 'bg-orange-500/10 text-orange-600' },
+                      other: { name: 'Other', icon: Clock, color: 'bg-gray-500/10 text-gray-600' },
+                    };
+
+                    // Filter orders first
+                    const filteredOrders = orders.filter((order) => {
+                      if (!orderSearch.trim()) return true;
+                      const orderNum = order.order_number || order.id;
+                      const lastFour = orderNum.slice(-4).toLowerCase();
+                      return lastFour.includes(orderSearch.toLowerCase().trim());
+                    });
+
+                    // Group by time period
+                    const groupedOrders = filteredOrders.reduce((acc, order) => {
+                      const period = getOrderTimePeriod(order.created_at);
+                      if (!acc[period]) acc[period] = [];
+                      acc[period].push(order);
+                      return acc;
+                    }, {} as Record<string, typeof orders>);
+
+                    return (
+                      <div className="space-y-6">
+                        {periodOrder.map((period) => {
+                          const periodOrders = groupedOrders[period];
+                          if (!periodOrders || periodOrders.length === 0) return null;
+                          
+                          const periodConfig = periodLabels[period];
+                          const PeriodIcon = periodConfig.icon;
+
+                          return (
+                            <div key={period} className="space-y-3">
+                              {/* Period Header */}
+                              <div className="flex items-center gap-2 sticky top-0 bg-card py-2">
+                                <div className={`p-1.5 rounded-full ${periodConfig.color}`}>
+                                  <PeriodIcon className="h-4 w-4" />
+                                </div>
+                                <span className="font-semibold">{periodConfig.name}</span>
+                                <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                                  {periodOrders.length} orders
                                 </span>
+                              </div>
+                              
+                              {/* Period Orders */}
+                              {periodOrders.slice(0, 10).map((order) => (
+                                <div
+                                  key={order.id}
+                                  className="p-4 rounded-2xl bg-muted/50"
+                                >
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="font-bold text-primary text-sm sm:text-base">
+                                          #{order.order_number || order.id.slice(-8).toUpperCase()}
+                                        </span>
+                                        <span
+                                          className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                            order.status === "collected"
+                                              ? "bg-green-500/10 text-green-600"
+                                              : order.status === "cancelled"
+                                                ? "bg-destructive/10 text-destructive"
+                                                : order.status === "ready"
+                                                  ? "bg-secondary/10 text-secondary"
+                                                  : order.status === "confirmed"
+                                                    ? "bg-blue-500/10 text-blue-600"
+                                                    : "bg-amber-500/10 text-amber-600"
+                                          }`}
+                                        >
+                                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                        </span>
+                                      </div>
+                                      <div className="flex items-center gap-2 mt-1.5">
+                                        <span className="text-sm font-medium">
+                                          {order.user_name || "Guest"}
+                                        </span>
+                                        <span className="text-muted-foreground">•</span>
+                                        <span className="text-sm font-bold text-primary">
+                                          ₹{order.total}
+                                        </span>
+                                      </div>
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        {new Date(order.created_at).toLocaleDateString("en-IN", {
+                                          day: "2-digit",
+                                          month: "short",
+                                          year: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  
+                                  {/* Order Items */}
+                                  {order.items && order.items.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-border/50">
+                                      <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Items</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {order.items.map((item, idx) => (
+                                          <span
+                                            key={idx}
+                                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-background text-xs font-medium border border-border/50"
+                                          >
+                                            <span className="text-foreground">{item.name}</span>
+                                            <span className="text-muted-foreground">×{item.quantity}</span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
                               ))}
                             </div>
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
-                    ))}
-                  </div>
+                    );
+                  })()
                 )}
               </CardContent>
             </Card>
