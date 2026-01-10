@@ -159,7 +159,10 @@ export default function Checkout() {
       // Don't clear cart here - it will be cleared after payment verification in OrderSuccess
 
       if (data.redirectUrl) {
-        window.location.href = data.redirectUrl;
+        // Extract the path from the full URL for internal navigation (no white screen)
+        const url = new URL(data.redirectUrl);
+        const internalPath = url.pathname + url.search;
+        navigate(internalPath);
       } else {
         navigate("/order-success");
       }
