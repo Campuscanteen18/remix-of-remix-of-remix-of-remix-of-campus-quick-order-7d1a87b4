@@ -26,6 +26,7 @@ import {
 } from "@/hooks/useAdminData";
 import { useMonthlyAnalytics } from "@/hooks/useMonthlyAnalytics";
 import { useWeeklyAnalytics } from "@/hooks/useWeeklyAnalytics";
+import { useTodayAnalytics } from "@/hooks/useTodayAnalytics";
 import { useImageUpload } from "@/hooks/useImageUpload";
 import { toast } from "sonner";
 import {
@@ -148,6 +149,7 @@ export default function AdminDashboard() {
   const { data: stats } = useOrderStats();
   const { data: monthlyStats, isLoading: monthlyLoading } = useMonthlyAnalytics();
   const { data: weeklyStats, isLoading: weeklyLoading } = useWeeklyAnalytics();
+  const { data: todayStats, isLoading: todayLoading } = useTodayAnalytics();
   const createMenuItem = useCreateMenuItem();
   const updateMenuItem = useUpdateMenuItem();
   const deleteMenuItem = useDeleteMenuItem();
@@ -455,128 +457,261 @@ export default function AdminDashboard() {
 
           {/* Analytics Tab */}
           <TabsContent value="analytics" className="space-y-6">
-            <div className="grid grid-cols-2 gap-3 sm:gap-4">
-              <Card className="rounded-2xl card-shadow">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
-                      <IndianRupee className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Revenue (7d)</p>
-                      <p className="text-base sm:text-xl font-bold truncate">
-                        ₹{(stats?.totalRevenue || 0).toLocaleString()}
-                      </p>
-                    </div>
+            {/* Today's Detailed Report */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                    <Clock className="w-5 h-5 text-primary" />
                   </div>
-                </CardContent>
-              </Card>
+                  <div>
+                    <h3 className="text-lg font-semibold">Today's Report</h3>
+                    <p className="text-sm text-muted-foreground">{todayStats?.dateString}</p>
+                  </div>
+                </div>
+                {todayStats?.currentPeriod && (
+                  <span className="px-3 py-1 rounded-full bg-primary text-primary-foreground text-sm font-medium animate-pulse">
+                    {todayStats.currentPeriod}
+                  </span>
+                )}
+              </div>
 
-              <Card className="rounded-2xl card-shadow">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-secondary/10 flex items-center justify-center flex-shrink-0">
-                      <ShoppingBag className="w-4 h-4 sm:w-5 sm:h-5 text-secondary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Orders (7d)</p>
-                      <p className="text-base sm:text-xl font-bold">{stats?.totalOrders || 0}</p>
-                    </div>
+              {todayLoading ? (
+                <div className="flex justify-center py-8">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <>
+                  {/* Today's Summary Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <Card className="rounded-2xl card-shadow bg-primary/5">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="text-center">
+                          <ShoppingBag className="w-6 h-6 mx-auto text-primary mb-1" />
+                          <p className="text-2xl sm:text-3xl font-bold text-primary">{todayStats?.totalOrders || 0}</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Total Orders</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow bg-secondary/5">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="text-center">
+                          <IndianRupee className="w-6 h-6 mx-auto text-secondary mb-1" />
+                          <p className="text-2xl sm:text-3xl font-bold text-secondary">₹{(todayStats?.totalRevenue || 0).toLocaleString()}</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Revenue</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="text-center">
+                          <TrendingUp className="w-6 h-6 mx-auto text-green-600 mb-1" />
+                          <p className="text-2xl sm:text-3xl font-bold">{todayStats?.peakHour || '-'}</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Peak Hour</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-3 sm:p-4">
+                        <div className="text-center">
+                          <Users className="w-6 h-6 mx-auto text-muted-foreground mb-1" />
+                          <p className="text-2xl sm:text-3xl font-bold">₹{todayStats?.avgOrderValue || 0}</p>
+                          <p className="text-[10px] sm:text-xs text-muted-foreground">Avg Order</p>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                </CardContent>
-              </Card>
 
-              <Card className="rounded-2xl card-shadow">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-accent flex items-center justify-center flex-shrink-0">
-                      <Users className="w-4 h-4 sm:w-5 sm:h-5 text-accent-foreground" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Avg Order</p>
-                      <p className="text-base sm:text-xl font-bold">₹{stats?.avgOrderValue || 0}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  {/* Order Status Overview */}
+                  <Card className="rounded-2xl card-shadow">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Order Status</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-4 gap-2">
+                        <div className="text-center p-3 rounded-xl bg-amber-500/10">
+                          <p className="text-xl font-bold text-amber-600">{todayStats?.pendingOrders || 0}</p>
+                          <p className="text-xs text-muted-foreground">Pending</p>
+                        </div>
+                        <div className="text-center p-3 rounded-xl bg-blue-500/10">
+                          <p className="text-xl font-bold text-blue-600">{todayStats?.preparingOrders || 0}</p>
+                          <p className="text-xs text-muted-foreground">Preparing</p>
+                        </div>
+                        <div className="text-center p-3 rounded-xl bg-purple-500/10">
+                          <p className="text-xl font-bold text-purple-600">{todayStats?.readyOrders || 0}</p>
+                          <p className="text-xs text-muted-foreground">Ready</p>
+                        </div>
+                        <div className="text-center p-3 rounded-xl bg-green-500/10">
+                          <p className="text-xl font-bold text-green-600">{todayStats?.collectedOrders || 0}</p>
+                          <p className="text-xs text-muted-foreground">Collected</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
 
-              <Card className="rounded-2xl card-shadow">
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-                      <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-muted-foreground truncate">Today</p>
-                      <p className="text-base sm:text-xl font-bold">{stats?.todayOrders || 0}</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+                  <div className="grid lg:grid-cols-2 gap-4">
+                    {/* Time Period Breakdown */}
+                    <Card className="rounded-2xl card-shadow">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Clock className="h-4 w-4" />
+                          Orders by Time Period
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {todayStats?.periodBreakdown && todayStats.periodBreakdown.some(p => p.orders > 0) ? (
+                          <div className="space-y-3">
+                            {todayStats.periodBreakdown.map((period, idx) => {
+                              const colors = ['bg-amber-500', 'bg-blue-500', 'bg-purple-500', 'bg-orange-500'];
+                              const bgColors = ['bg-amber-500/10', 'bg-blue-500/10', 'bg-purple-500/10', 'bg-orange-500/10'];
+                              const icons = [Sun, Utensils, Cookie, Utensils];
+                              const Icon = icons[idx];
+                              return (
+                                <div 
+                                  key={period.period} 
+                                  className={`p-3 rounded-xl ${bgColors[idx]} ${period.isActive ? 'ring-2 ring-primary ring-offset-2' : ''}`}
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                      <Icon className="h-4 w-4" />
+                                      <span className="font-semibold">{period.period}</span>
+                                      {period.isActive && (
+                                        <span className="text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full">NOW</span>
+                                      )}
+                                    </div>
+                                    <span className="text-sm font-bold">{period.orders} orders</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <div className="flex-1 h-2 bg-background/50 rounded-full overflow-hidden">
+                                      <div 
+                                        className={`h-full ${colors[idx]} rounded-full transition-all`}
+                                        style={{ width: `${period.percentage}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs font-medium w-10 text-right">{period.percentage}%</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Revenue: ₹{period.revenue.toLocaleString()}
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-center py-6 text-muted-foreground">No orders today yet</p>
+                        )}
+                      </CardContent>
+                    </Card>
 
-            <div className="grid lg:grid-cols-2 gap-6">
-              <Card className="rounded-2xl card-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg">Revenue</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData}>
-                        <defs>
-                          <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
-                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                        <Tooltip
-                          contentStyle={{
-                            background: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "12px",
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="revenue"
-                          stroke="hsl(var(--primary))"
-                          strokeWidth={2}
-                          fill="url(#colorRevenue)"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    {/* Top Selling Items Today */}
+                    <Card className="rounded-2xl card-shadow">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          Top Items Today
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        {todayStats?.topItems && todayStats.topItems.length > 0 ? (
+                          <div className="space-y-2">
+                            {todayStats.topItems.map((item, idx) => (
+                              <div 
+                                key={item.name} 
+                                className="flex items-center justify-between p-3 rounded-xl bg-muted/50"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                                    idx === 0 ? 'bg-yellow-500 text-yellow-950' : 
+                                    idx === 1 ? 'bg-gray-300 text-gray-700' : 
+                                    idx === 2 ? 'bg-amber-600 text-amber-50' : 
+                                    'bg-muted text-muted-foreground'
+                                  }`}>
+                                    {idx + 1}
+                                  </span>
+                                  <div>
+                                    <p className="font-medium text-sm">{item.name}</p>
+                                    <p className="text-xs text-muted-foreground">₹{item.revenue.toLocaleString()}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right">
+                                  <p className="font-bold text-primary">{item.quantity}</p>
+                                  <p className="text-xs text-muted-foreground">sold</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-center py-6 text-muted-foreground">No items sold today</p>
+                        )}
+                      </CardContent>
+                    </Card>
                   </div>
-                </CardContent>
-              </Card>
 
-              <Card className="rounded-2xl card-shadow">
-                <CardHeader>
-                  <CardTitle className="text-lg">Orders</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="day" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                        <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                        <Tooltip
-                          contentStyle={{
-                            background: "hsl(var(--card))",
-                            border: "1px solid hsl(var(--border))",
-                            borderRadius: "12px",
-                          }}
-                        />
-                        <Bar dataKey="orders" fill="hsl(var(--secondary))" radius={[8, 8, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
+                  {/* Hourly Orders Chart */}
+                  <Card className="rounded-2xl card-shadow">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base">Hourly Orders</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {todayStats?.hourlyData && todayStats.hourlyData.some(h => h.orders > 0) ? (
+                        <div className="h-[200px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={todayStats.hourlyData}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                              <XAxis dataKey="hour" stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                              <YAxis stroke="hsl(var(--muted-foreground))" fontSize={10} />
+                              <Tooltip
+                                formatter={(value: number, name: string) => [
+                                  name === 'revenue' ? `₹${value.toLocaleString()}` : value,
+                                  name === 'revenue' ? 'Revenue' : 'Orders'
+                                ]}
+                                contentStyle={{
+                                  background: "hsl(var(--card))",
+                                  border: "1px solid hsl(var(--border))",
+                                  borderRadius: "12px",
+                                }}
+                              />
+                              <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      ) : (
+                        <p className="text-center py-6 text-muted-foreground">No hourly data yet</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Completion Rate */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-green-500/10 flex items-center justify-center">
+                            <Package className="w-6 h-6 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Completion Rate</p>
+                            <p className="text-3xl font-bold text-green-600">{todayStats?.completionRate || 0}%</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                    <Card className="rounded-2xl card-shadow">
+                      <CardContent className="p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-12 h-12 rounded-xl bg-secondary/10 flex items-center justify-center">
+                            <IndianRupee className="w-6 h-6 text-secondary" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Today's Revenue</p>
+                            <p className="text-3xl font-bold text-secondary">₹{(todayStats?.totalRevenue || 0).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
                   </div>
-                </CardContent>
-              </Card>
+                </>
+              )}
             </div>
 
             {/* Weekly Detailed Review */}
