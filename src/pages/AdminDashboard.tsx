@@ -854,19 +854,27 @@ export default function AdminDashboard() {
                             </div>
                           );
 
-                          // For completed periods, use Collapsible (collapsed by default)
-                          if (isCompleted) {
+                          // For non-current periods, use Collapsible (collapsed by default)
+                          if (!isCurrent) {
+                            const isFuture = periodIndex > currentIndex && period !== 'other';
                             return (
                               <Collapsible key={period} defaultOpen={false} className="space-y-3">
-                                <CollapsibleTrigger className="w-full">
+                                <CollapsibleTrigger className="w-full group">
                                   <div className="flex items-center gap-2 py-2 px-3 rounded-lg bg-muted/50 hover:bg-muted transition-colors cursor-pointer">
                                     <div className={`p-1.5 rounded-full ${periodConfig.color}`}>
                                       <PeriodIcon className="h-4 w-4" />
                                     </div>
                                     <span className="font-semibold">{periodConfig.name}</span>
-                                    <span className="text-xs font-medium bg-muted-foreground/20 text-muted-foreground px-2 py-0.5 rounded-full">
-                                      Completed
-                                    </span>
+                                    {isCompleted && (
+                                      <span className="text-xs font-medium bg-muted-foreground/20 text-muted-foreground px-2 py-0.5 rounded-full">
+                                        Completed
+                                      </span>
+                                    )}
+                                    {isFuture && (
+                                      <span className="text-xs font-medium bg-blue-500/20 text-blue-600 px-2 py-0.5 rounded-full">
+                                        Upcoming
+                                      </span>
+                                    )}
                                     <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full ml-auto">
                                       {periodOrders.length} orders
                                     </span>
@@ -880,20 +888,18 @@ export default function AdminDashboard() {
                             );
                           }
 
-                          // For current/future periods, show expanded
+                          // For current period, show expanded
                           return (
                             <div key={period} className="space-y-3">
                               {/* Period Header */}
-                              <div className={`flex items-center gap-2 sticky top-0 py-2 ${isCurrent ? 'bg-primary/5 px-3 rounded-lg -mx-3' : 'bg-card'}`}>
+                              <div className="flex items-center gap-2 sticky top-0 py-2 bg-primary/5 px-3 rounded-lg -mx-3">
                                 <div className={`p-1.5 rounded-full ${periodConfig.color}`}>
                                   <PeriodIcon className="h-4 w-4" />
                                 </div>
                                 <span className="font-semibold">{periodConfig.name}</span>
-                                {isCurrent && (
-                                  <span className="text-xs font-medium bg-primary text-primary-foreground px-2 py-0.5 rounded-full animate-pulse">
-                                    NOW
-                                  </span>
-                                )}
+                                <span className="text-xs font-medium bg-primary text-primary-foreground px-2 py-0.5 rounded-full animate-pulse">
+                                  NOW
+                                </span>
                                 <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full ml-auto">
                                   {periodOrders.length} orders
                                 </span>
