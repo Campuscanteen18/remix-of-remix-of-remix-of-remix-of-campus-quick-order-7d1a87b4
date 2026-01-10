@@ -121,6 +121,19 @@ export default function AdminDashboard() {
     fetchProfile();
   }, []);
 
+  // Cleanup old orders (older than 48 hours) on dashboard load
+  useEffect(() => {
+    const cleanupOldOrders = async () => {
+      try {
+        await supabase.rpc('cleanup_old_orders');
+      } catch (error) {
+        console.error('Failed to cleanup old orders:', error);
+      }
+    };
+    
+    cleanupOldOrders();
+  }, []);
+
   // Form state
   const [formData, setFormData] = useState({
     name: "",
