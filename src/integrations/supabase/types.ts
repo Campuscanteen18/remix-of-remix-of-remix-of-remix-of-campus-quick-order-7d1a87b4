@@ -544,6 +544,7 @@ export type Database = {
     Functions: {
       cleanup_expired_admin_sessions: { Args: never; Returns: number }
       cleanup_old_orders: { Args: never; Returns: number }
+      cleanup_orders_older_than_48h: { Args: never; Returns: number }
       get_user_campus_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
