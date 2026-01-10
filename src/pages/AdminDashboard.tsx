@@ -592,8 +592,15 @@ export default function AdminDashboard() {
 
           {/* Orders Tab */}
           <TabsContent value="orders" className="space-y-4">
-            {/* Time Period Summary Cards */}
+            {/* Current Time Period Summary Card */}
             {(() => {
+              // Get current time period
+              const currentHour = new Date().getHours();
+              let currentPeriodId = 'other';
+              if (currentHour >= 7 && currentHour < 11) currentPeriodId = 'breakfast';
+              else if (currentHour >= 11 && currentHour < 15) currentPeriodId = 'lunch';
+              else if (currentHour >= 15 && currentHour < 18) currentPeriodId = 'snacks';
+
               // Calculate order counts by time period based on order creation time
               const getTimePeriod = (dateStr: string) => {
                 const hour = new Date(dateStr).getHours();
@@ -628,51 +635,61 @@ export default function AdminDashboard() {
                 { id: 'snacks', name: 'Snacks', icon: Cookie, color: 'bg-purple-500/10 text-purple-600', time: '3 PM - 6 PM' },
               ];
 
-              return (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {periodConfigs.map(period => {
-                    const ordersList = periodOrders[period.id as keyof typeof periodOrders];
-                    const itemCounts = getItemCounts(ordersList);
-                    const Icon = period.icon;
+              // Find current period config
+              const currentPeriod = periodConfigs.find(p => p.id === currentPeriodId);
 
-                    return (
-                      <Card key={period.id} className="rounded-2xl card-shadow">
-                        <CardHeader className="pb-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className={`p-2 rounded-full ${period.color}`}>
-                                <Icon className="h-4 w-4" />
-                              </div>
-                              <div>
-                                <CardTitle className="text-base">{period.name}</CardTitle>
-                                <p className="text-xs text-muted-foreground">{period.time}</p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-2xl font-bold text-primary">{ordersList.length}</p>
-                              <p className="text-xs text-muted-foreground">orders</p>
-                            </div>
+              // If outside meal times, show a message
+              if (!currentPeriod) {
+                return (
+                  <Card className="rounded-2xl card-shadow">
+                    <CardContent className="py-8">
+                      <p className="text-center text-muted-foreground">
+                        Outside meal hours. Orders summary will show during Breakfast (7-11 AM), Lunch (11 AM-3 PM), or Snacks (3-6 PM).
+                      </p>
+                    </CardContent>
+                  </Card>
+                );
+              }
+
+              const ordersList = periodOrders[currentPeriodId as keyof typeof periodOrders];
+              const itemCounts = getItemCounts(ordersList);
+              const Icon = currentPeriod.icon;
+
+              return (
+                <Card className="rounded-2xl card-shadow">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`p-2 rounded-full ${currentPeriod.color}`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{currentPeriod.name}</CardTitle>
+                          <p className="text-sm text-muted-foreground">{currentPeriod.time}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-3xl font-bold text-primary">{ordersList.length}</p>
+                        <p className="text-sm text-muted-foreground">orders</p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {itemCounts.length > 0 ? (
+                      <div className="space-y-2">
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Top Items</p>
+                        {itemCounts.map(([name, count]) => (
+                          <div key={name} className="flex items-center justify-between py-2 px-3 rounded-lg bg-muted/50">
+                            <span className="font-medium">{name}</span>
+                            <span className="font-bold text-primary">{count}</span>
                           </div>
-                        </CardHeader>
-                        <CardContent>
-                          {itemCounts.length > 0 ? (
-                            <div className="space-y-2">
-                              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Top Items</p>
-                              {itemCounts.map(([name, count]) => (
-                                <div key={name} className="flex items-center justify-between py-1.5 px-2 rounded-lg bg-muted/50">
-                                  <span className="text-sm font-medium truncate">{name}</span>
-                                  <span className="text-sm font-bold text-primary ml-2">{count}</span>
-                                </div>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-sm text-muted-foreground text-center py-4">No orders yet</p>
-                          )}
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground text-center py-4">No orders yet for this period</p>
+                    )}
+                  </CardContent>
+                </Card>
               );
             })()}
 
