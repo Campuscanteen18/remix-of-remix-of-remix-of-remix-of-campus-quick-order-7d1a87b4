@@ -14,6 +14,9 @@ import { OrdersProvider } from "@/context/OrdersContext";
 import { CampusProvider } from "@/context/CampusContext";
 import { ProtectedRoute, AdminRoute, KioskRoute } from "@/components/ProtectedRoute";
 import { CampusGate } from "@/components/CampusGate";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { OfflineDetector } from "@/components/OfflineDetector";
+import { SessionExpiryHandler } from "@/components/SessionExpiryHandler";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import SelectCampus from "./pages/SelectCampus";
@@ -39,96 +42,100 @@ const queryClient = new QueryClient({
 });
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <CampusProvider>
-        <AuthProvider>
-          <AdminAuthProvider>
-            <MenuProvider>
-              <OrdersProvider>
-                <CartProvider>
-                    <PrinterProvider>
-                      <TooltipProvider>
-                        <Toaster />
-                        <Sonner />
-                        <BrowserRouter>
-                          <Routes>
-                            {/* Public routes */}
-                            <Route path="/" element={<Index />} />
-                            <Route path="/select-campus" element={<SelectCampus />} />
-                            
-                            {/* Campus-gated routes */}
-                            <Route path="/auth" element={
-                              <CampusGate>
-                                <Auth />
-                              </CampusGate>
-                            } />
-                            <Route path="/menu" element={
-                              <CampusGate>
-                                <Menu />
-                              </CampusGate>
-                            } />
-                            <Route path="/checkout" element={
-                              <CampusGate>
-                                <Checkout />
-                              </CampusGate>
-                            } />
-                            <Route path="/order-success" element={
-                              <CampusGate>
-                                <OrderSuccess />
-                              </CampusGate>
-                            } />
-                            <Route path="/stripe-sandbox" element={
-                              <StripeSimulator />
-                            } />
-                            <Route path="/my-orders" element={
-                              <CampusGate>
-                                <MyOrders />
-                              </CampusGate>
-                            } />
-                            <Route path="/order/:orderId" element={
-                              <CampusGate>
-                                <OrderDetails />
-                              </CampusGate>
-                            } />
-                            <Route path="/profile" element={
-                              <CampusGate>
-                                <Profile />
-                              </CampusGate>
-                            } />
-                            <Route 
-                              path="/admin" 
-                              element={
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <CampusProvider>
+          <AuthProvider>
+            <AdminAuthProvider>
+              <MenuProvider>
+                <OrdersProvider>
+                  <CartProvider>
+                      <PrinterProvider>
+                        <TooltipProvider>
+                          <Toaster />
+                          <Sonner />
+                          <OfflineDetector />
+                          <BrowserRouter>
+                            <SessionExpiryHandler warningThresholdMinutes={5} />
+                            <Routes>
+                              {/* Public routes */}
+                              <Route path="/" element={<Index />} />
+                              <Route path="/select-campus" element={<SelectCampus />} />
+                              
+                              {/* Campus-gated routes */}
+                              <Route path="/auth" element={
                                 <CampusGate>
-                                  <AdminRoute>
-                                    <AdminDashboard />
-                                  </AdminRoute>
+                                  <Auth />
                                 </CampusGate>
-                              } 
-                            />
-                            <Route 
-                              path="/kiosk-scanner" 
-                              element={
+                              } />
+                              <Route path="/menu" element={
                                 <CampusGate>
-                                  <KioskRoute>
-                                    <DedicatedScanner />
-                                  </KioskRoute>
+                                  <Menu />
                                 </CampusGate>
-                              } 
-                            />
-                            <Route path="*" element={<NotFound />} />
-                          </Routes>
-                        </BrowserRouter>
-                      </TooltipProvider>
-                    </PrinterProvider>
-                </CartProvider>
-              </OrdersProvider>
-            </MenuProvider>
-          </AdminAuthProvider>
-        </AuthProvider>
-      </CampusProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
+                              } />
+                              <Route path="/checkout" element={
+                                <CampusGate>
+                                  <Checkout />
+                                </CampusGate>
+                              } />
+                              <Route path="/order-success" element={
+                                <CampusGate>
+                                  <OrderSuccess />
+                                </CampusGate>
+                              } />
+                              <Route path="/stripe-sandbox" element={
+                                <StripeSimulator />
+                              } />
+                              <Route path="/my-orders" element={
+                                <CampusGate>
+                                  <MyOrders />
+                                </CampusGate>
+                              } />
+                              <Route path="/order/:orderId" element={
+                                <CampusGate>
+                                  <OrderDetails />
+                                </CampusGate>
+                              } />
+                              <Route path="/profile" element={
+                                <CampusGate>
+                                  <Profile />
+                                </CampusGate>
+                              } />
+                              <Route 
+                                path="/admin" 
+                                element={
+                                  <CampusGate>
+                                    <AdminRoute>
+                                      <AdminDashboard />
+                                    </AdminRoute>
+                                  </CampusGate>
+                                } 
+                              />
+                              <Route 
+                                path="/kiosk-scanner" 
+                                element={
+                                  <CampusGate>
+                                    <KioskRoute>
+                                      <DedicatedScanner />
+                                    </KioskRoute>
+                                  </CampusGate>
+                                } 
+                              />
+                              <Route path="*" element={<NotFound />} />
+                            </Routes>
+                          </BrowserRouter>
+                        </TooltipProvider>
+                      </PrinterProvider>
+                  </CartProvider>
+                </OrdersProvider>
+              </MenuProvider>
+            </AdminAuthProvider>
+          </AuthProvider>
+        </CampusProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;
