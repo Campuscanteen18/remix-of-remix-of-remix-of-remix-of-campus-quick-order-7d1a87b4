@@ -9,7 +9,7 @@ import { Logo } from '@/components/Logo';
 import { useCampus } from '@/context/CampusContext';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
-import { Mail, Lock, User, ArrowRight, Loader2, Building2 } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, Building2, RefreshCw } from 'lucide-react';
 
 // Validation schemas
 const emailSchema = z.string().trim().email('Please enter a valid email address').max(255, 'Email is too long');
@@ -313,11 +313,22 @@ export default function Auth() {
       <div className="fixed inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-secondary/[0.02]" />
       
       <div className="relative w-full max-w-[380px]">
-        {/* Campus Badge */}
+        {/* Campus Badge with Switch Button */}
         {campus && (
-          <div className="flex items-center justify-center gap-2 mb-5 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground w-fit mx-auto">
-            <Building2 size={14} />
-            <span className="text-xs font-medium">{campus.name}</span>
+          <div className="flex items-center justify-center gap-2 mb-5">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground">
+              <Building2 size={14} />
+              <span className="text-xs font-medium">{campus.name}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5"
+              onClick={() => navigate('/select-campus')}
+            >
+              <RefreshCw size={12} />
+              Switch
+            </Button>
           </div>
         )}
         
