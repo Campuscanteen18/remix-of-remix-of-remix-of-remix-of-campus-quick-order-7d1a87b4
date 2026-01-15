@@ -18,13 +18,14 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Logo } from "@/components/Logo";
 import { useCart } from "@/context/CartContext";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useStockCheck } from "@/hooks/useStockCheck";
 import { useOrders } from "@/hooks/useOrders";
 import { EmptyState } from "@/components/EmptyState";
 import { supabase } from "@/integrations/supabase/client";
 import { Separator } from "@/components/ui/separator";
+import { ImageWithFallback } from "@/components/ImageWithFallback";
 
 export default function Checkout() {
   const navigate = useNavigate();
@@ -35,6 +36,10 @@ export default function Checkout() {
   const { toast } = useToast();
   const { checkStock } = useStockCheck();
   const { createOrder, isCreating } = useOrders();
+  
+  // Double-submit prevention
+  const lastSubmitRef = useRef<number>(0);
+  const SUBMIT_COOLDOWN_MS = 5000; // 5 seconds cooldown
 
   // Animation variants
   const containerVariants = {
@@ -80,6 +85,17 @@ export default function Checkout() {
   }
 
   const handleOpenGateway = async () => {
+    // Double-submit prevention
+    const now = Date.now();
+    if (now - lastSubmitRef.current < SUBMIT_COOLDOWN_MS) {
+      toast({
+        title: 'Please Wait',
+        description: 'Your previous request is still processing.',
+      });
+      return;
+    }
+    lastSubmitRef.current = now;
+    
     setIsCheckingStock(true);
     setStockError(null);
 
@@ -240,10 +256,12 @@ export default function Checkout() {
                   className="p-4 flex gap-4 hover:bg-muted/30 transition-colors"
                 >
                   <div className="relative h-20 w-20 flex-shrink-0">
-                    <img
-                      src={item.image}
+                    <ImageWithFallback
+                      src={item.image || '/placeholder.svg'}
                       alt={item.name}
                       className="h-full w-full rounded-xl object-cover shadow-sm border border-border/50"
+                      fallbackIcon
+                      containerClassName="h-full w-full"
                     />
                     <div className="absolute -top-2 -right-2 h-5 min-w-[1.25rem] px-1 rounded-full bg-foreground text-background text-[10px] font-bold flex items-center justify-center shadow-md">
                       x{item.quantity}
