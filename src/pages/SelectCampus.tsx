@@ -1,47 +1,47 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Building2, ArrowRight, Loader2, AlertCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Logo } from '@/components/Logo';
-import { useCampus } from '@/context/CampusContext';
-import { useToast } from '@/hooks/use-toast';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Building2, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Logo } from "@/components/Logo";
+import { useCampus } from "@/context/CampusContext";
+import { useToast } from "@/hooks/use-toast";
 
 export default function SelectCampus() {
   const navigate = useNavigate();
   const { setCampusByCode, isLoading } = useCampus();
   const { toast } = useToast();
-  
-  const [campusCode, setCampusCode] = useState('');
+
+  const [campusCode, setCampusCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    
+
     const code = campusCode.trim().toUpperCase();
-    
+
     if (!code) {
-      setError('Please enter a campus code');
+      setError("Please enter a campus code");
       return;
     }
-    
+
     if (code.length < 2 || code.length > 10) {
-      setError('Campus code must be 2-10 characters');
+      setError("Campus code must be 2-10 characters");
       return;
     }
 
     const result = await setCampusByCode(code);
-    
+
     if (result.success) {
       toast({
-        title: 'Campus Found!',
-        description: 'Redirecting to login...',
+        title: "Campus Found!",
+        description: "Redirecting to login...",
       });
-      navigate('/auth');
+      navigate("/auth");
     } else {
-      setError(result.error || 'Campus not found. Please check the code.');
+      setError(result.error || "Campus not found. Please check the code.");
     }
   };
 
@@ -49,14 +49,14 @@ export default function SelectCampus() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       {/* Subtle background */}
       <div className="fixed inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-secondary/[0.02]" />
-      
+
       <div className="relative w-full max-w-[380px]">
         {/* Logo Section */}
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
             <Logo size="lg" showText={false} />
           </div>
-          <h1 className="font-display text-xl font-semibold text-foreground">Campus Canteen</h1>
+          <h1 className="font-display text-xl font-semibold text-foreground">BiteOS</h1>
           <p className="text-sm text-muted-foreground mt-1">Find your campus to get started</p>
         </div>
 
@@ -87,14 +87,14 @@ export default function SelectCampus() {
                   setError(null);
                 }}
                 className={`h-12 text-lg font-mono uppercase tracking-widest text-center rounded-xl ${
-                  error ? 'border-destructive' : ''
+                  error ? "border-destructive" : ""
                 }`}
                 maxLength={10}
                 disabled={isLoading}
                 autoFocus
                 autoComplete="off"
               />
-              
+
               {error && (
                 <div className="flex items-center gap-1.5 text-destructive text-xs mt-1.5">
                   <AlertCircle className="w-3.5 h-3.5" />
@@ -103,8 +103,8 @@ export default function SelectCampus() {
               )}
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full h-11 font-semibold rounded-xl gap-2"
               disabled={isLoading || !campusCode.trim()}
             >
