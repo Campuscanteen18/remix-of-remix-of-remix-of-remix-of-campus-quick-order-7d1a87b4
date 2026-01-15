@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
 import { z } from 'zod';
+import { sanitizeText, sanitizePhone, sanitizeEmail } from '@/lib/sanitize';
 
 // Validation schemas
 const nameSchema = z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name is too long');
@@ -75,14 +76,17 @@ export default function Profile() {
     
     setIsSaving(true);
     
+    // Sanitize all inputs before saving
+    const sanitizedData = {
+      fullName: sanitizeText(formData.fullName),
+      email: sanitizeEmail(formData.email),
+      phone: formData.phone ? sanitizePhone(formData.phone) : undefined,
+    };
+    
     // Simulate API delay
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    updateUser({
-      fullName: formData.fullName.trim(),
-      email: formData.email.trim(),
-      phone: formData.phone.trim() || undefined
-    });
+    updateUser(sanitizedData);
     
     setIsSaving(false);
     

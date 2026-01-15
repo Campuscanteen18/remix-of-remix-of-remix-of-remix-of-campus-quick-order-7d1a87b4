@@ -30,6 +30,9 @@ import MyOrders from "./pages/MyOrders";
 import Profile from "./pages/Profile";
 import OrderDetails from "./pages/OrderDetails";
 import NotFound from "./pages/NotFound";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import VerifyEmail from "./pages/VerifyEmail";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -87,6 +90,9 @@ const App = () => (
                               <Route path="/stripe-sandbox" element={
                                 <StripeSimulator />
                               } />
+                              <Route path="/forgot-password" element={<ForgotPassword />} />
+                              <Route path="/reset-password" element={<ResetPassword />} />
+                              <Route path="/verify-email" element={<VerifyEmail />} />
                               <Route path="/my-orders" element={
                                 <CampusGate>
                                   <MyOrders />

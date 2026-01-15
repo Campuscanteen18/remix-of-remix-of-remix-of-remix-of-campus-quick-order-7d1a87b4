@@ -9,7 +9,9 @@ import { Logo } from '@/components/Logo';
 import { useCampus } from '@/context/CampusContext';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
-import { Mail, Lock, User, ArrowRight, Loader2, Building2, RefreshCw } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, Building2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { checkLoginRateLimit, recordLoginAttempt } from '@/lib/rateLimit';
+import { sanitizeEmail, sanitizeText } from '@/lib/sanitize';
 
 // Validation schemas
 const emailSchema = z.string().trim().email('Please enter a valid email address').max(255, 'Email is too long');
@@ -30,6 +32,7 @@ export default function Auth() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
 
   // Handle logout parameter
   useEffect(() => {
@@ -190,18 +193,38 @@ export default function Auth() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     clearErrors();
+    setRateLimitMessage(null);
     
     if (!validateLoginForm()) return;
+
+    // Sanitize inputs
+    const sanitizedEmail = sanitizeEmail(loginEmail);
+
+    // Check rate limit
+    const rateLimit = checkLoginRateLimit(sanitizedEmail);
+    if (!rateLimit.allowed) {
+      setRateLimitMessage(rateLimit.message || 'Too many login attempts. Please try again later.');
+      return;
+    }
 
     setIsLoading(true);
     
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email: loginEmail.trim(),
+        email: sanitizedEmail,
         password: loginPassword,
       });
       
       if (error) {
+        // Record failed attempt
+        recordLoginAttempt(sanitizedEmail, false);
+        
+        // Update rate limit message if needed
+        const newRateLimit = checkLoginRateLimit(sanitizedEmail);
+        if (newRateLimit.remainingAttempts <= 2 && newRateLimit.remainingAttempts > 0) {
+          setRateLimitMessage(`${newRateLimit.remainingAttempts} attempts remaining`);
+        }
+        
         toast({
           title: 'Login Failed',
           description: error.message === 'Invalid login credentials' 
@@ -211,6 +234,9 @@ export default function Auth() {
         });
         return;
       }
+
+      // Record successful login
+      recordLoginAttempt(sanitizedEmail, true);
 
       if (data.user) {
         toast({
@@ -428,6 +454,25 @@ export default function Auth() {
                     </>
                   )}
                 </Button>
+
+                {/* Rate Limit Warning */}
+                {rateLimitMessage && (
+                  <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500">
+                    <AlertTriangle size={16} />
+                    <span className="text-xs font-medium">{rateLimitMessage}</span>
+                  </div>
+                )}
+
+                {/* Forgot Password Link */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/forgot-password')}
+                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                  >
+                    Forgot your password?
+                  </button>
+                </div>
               </form>
             </TabsContent>
 
