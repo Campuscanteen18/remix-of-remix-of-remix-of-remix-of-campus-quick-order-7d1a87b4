@@ -55,18 +55,6 @@ export default function RefundPolicy() {
                 <strong className="text-foreground">Refund Processing:</strong> In case of any refunds approved by BiteOS, it will take 7 days for the refund to be processed to you.
               </li>
             </ol>
-
-            <section className="mt-8">
-              <h2 className="text-lg font-semibold text-foreground mb-4">Contact for Refund/Cancellation</h2>
-              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
-                <p><strong>Name:</strong> Mr. Bareddy Janardhan Reddy</p>
-                <p><strong>Designation:</strong> FOUNDER</p>
-                <p><strong>Company:</strong> BiteOS Tech</p>
-                <p><strong>Address:</strong> 29-178-32/D6, SBI Colony, Nandyal</p>
-                <p><strong>Contact:</strong> biteostech@gmail.com</p>
-                <p><strong>Time:</strong> Monday - Friday (9:00 - 18:00)</p>
-              </div>
-            </section>
           </div>
 
           {/* Footer */}
