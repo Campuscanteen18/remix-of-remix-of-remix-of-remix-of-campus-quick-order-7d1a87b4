@@ -46,12 +46,12 @@ export function Logo({ size = 'md', showText = true, className }: LogoProps) {
         />
       </div>
       {showText && (
-        <div className="flex flex-col leading-none">
+        <div className="flex items-baseline leading-none">
           <span className={cn('font-display font-semibold text-foreground tracking-tight', textSizes[size])}>
-            Campus
+            Bite
           </span>
           <span className={cn('font-display font-bold text-primary tracking-tight', textSizes[size])}>
-            Canteen
+            OS
           </span>
         </div>
       )}

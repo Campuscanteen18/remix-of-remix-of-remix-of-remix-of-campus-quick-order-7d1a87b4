@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { X, ChevronRight, LogOut, KeyRound, HelpCircle, Package, Clock, Pencil, Loader2 } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { X, ChevronRight, LogOut, KeyRound, HelpCircle, Package, Clock, Pencil, Loader2, FileText, Shield, RefreshCcw } from 'lucide-react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
@@ -322,6 +322,56 @@ export function MobileProfilePanel({
                 </div>
                 <ChevronRight size={18} className="text-muted-foreground" />
               </button>
+            </div>
+            
+            <Separator />
+            
+            {/* Policies Section */}
+            <div className="p-4">
+              <h4 className="font-semibold text-sm text-muted-foreground mb-3">POLICIES</h4>
+              
+              <Link 
+                to="/terms"
+                onClick={onClose}
+                className="w-full flex items-center justify-between py-3 hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <FileText size={18} className="text-muted-foreground" />
+                  <span>Terms & Conditions</span>
+                </div>
+                <ChevronRight size={18} className="text-muted-foreground" />
+              </Link>
+              
+              <Link 
+                to="/privacy"
+                onClick={onClose}
+                className="w-full flex items-center justify-between py-3 hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <Shield size={18} className="text-muted-foreground" />
+                  <span>Privacy Policy</span>
+                </div>
+                <ChevronRight size={18} className="text-muted-foreground" />
+              </Link>
+              
+              <Link 
+                to="/refund-policy"
+                onClick={onClose}
+                className="w-full flex items-center justify-between py-3 hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <RefreshCcw size={18} className="text-muted-foreground" />
+                  <span>Refund & Cancellation</span>
+                </div>
+                <ChevronRight size={18} className="text-muted-foreground" />
+              </Link>
+            </div>
+            
+            {/* Copyright Footer */}
+            <div className="p-4 pt-2">
+              <p className="text-xs text-muted-foreground text-center">
+                © {new Date().getFullYear()} BiteOS Tech. All rights reserved.
+              </p>
             </div>
           </div>
           
