@@ -67,7 +67,7 @@ export default function Menu() {
                 <div className="flex items-center gap-1.5 px-2.5 py-1 bg-primary/10 rounded-full">
                   <MapPin size={12} className="text-primary" />
                   <span className="text-xs font-semibold text-primary uppercase tracking-wide">
-                    {campus.code} Canteen
+                    {campus.code}
                   </span>
                 </div>
               )}

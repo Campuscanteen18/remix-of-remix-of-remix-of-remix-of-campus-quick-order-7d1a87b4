@@ -33,6 +33,9 @@ import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 import VerifyEmail from "./pages/VerifyEmail";
+import TermsAndConditions from "./pages/TermsAndConditions";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import RefundPolicy from "./pages/RefundPolicy";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -93,6 +96,9 @@ const App = () => (
                               <Route path="/forgot-password" element={<ForgotPassword />} />
                               <Route path="/reset-password" element={<ResetPassword />} />
                               <Route path="/verify-email" element={<VerifyEmail />} />
+                              <Route path="/terms" element={<TermsAndConditions />} />
+                              <Route path="/privacy" element={<PrivacyPolicy />} />
+                              <Route path="/refund-policy" element={<RefundPolicy />} />
                               <Route path="/my-orders" element={
                                 <CampusGate>
                                   <MyOrders />
