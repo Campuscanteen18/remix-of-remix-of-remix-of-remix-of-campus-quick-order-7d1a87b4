@@ -101,6 +101,72 @@ export type Database = {
         }
         Relationships: []
       }
+      canteens: {
+        Row: {
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_ifsc: string | null
+          campus_id: string
+          commission_rate: number | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          owner_email: string | null
+          owner_name: string | null
+          owner_phone: string | null
+          updated_at: string | null
+          upi_id: string | null
+        }
+        Insert: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_ifsc?: string | null
+          campus_id: string
+          commission_rate?: number | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          owner_email?: string | null
+          owner_name?: string | null
+          owner_phone?: string | null
+          updated_at?: string | null
+          upi_id?: string | null
+        }
+        Update: {
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_ifsc?: string | null
+          campus_id?: string
+          commission_rate?: number | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          owner_email?: string | null
+          owner_name?: string | null
+          owner_phone?: string | null
+          updated_at?: string | null
+          upi_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "canteens_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campus_public_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canteens_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           campus_id: string
@@ -328,6 +394,8 @@ export type Database = {
       orders: {
         Row: {
           campus_id: string
+          canteen_id: string | null
+          commission_amount: number | null
           created_at: string
           customer_email: string | null
           customer_name: string | null
@@ -337,14 +405,21 @@ export type Database = {
           order_number: string
           payment_method: string | null
           payment_status: string | null
+          platform_fee: number | null
           qr_code: string | null
           status: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at: string
           user_id: string | null
+          utr_number: string | null
+          verification_status: string | null
+          verified_at: string | null
+          verified_by: string | null
         }
         Insert: {
           campus_id: string
+          canteen_id?: string | null
+          commission_amount?: number | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -354,14 +429,21 @@ export type Database = {
           order_number: string
           payment_method?: string | null
           payment_status?: string | null
+          platform_fee?: number | null
           qr_code?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at?: string
           user_id?: string | null
+          utr_number?: string | null
+          verification_status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Update: {
           campus_id?: string
+          canteen_id?: string | null
+          commission_amount?: number | null
           created_at?: string
           customer_email?: string | null
           customer_name?: string | null
@@ -371,11 +453,16 @@ export type Database = {
           order_number?: string
           payment_method?: string | null
           payment_status?: string | null
+          platform_fee?: number | null
           qr_code?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total?: number
           updated_at?: string
           user_id?: string | null
+          utr_number?: string | null
+          verification_status?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
         }
         Relationships: [
           {
@@ -392,7 +479,41 @@ export type Database = {
             referencedRelation: "campuses"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "orders_canteen_id_fkey"
+            columns: ["canteen_id"]
+            isOneToOne: false
+            referencedRelation: "canteens"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      platform_settings: {
+        Row: {
+          created_at: string | null
+          global_commission_rate: number | null
+          id: string
+          manual_verification_enabled: boolean | null
+          settlement_period: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          global_commission_rate?: number | null
+          id?: string
+          manual_verification_enabled?: boolean | null
+          settlement_period?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          global_commission_rate?: number | null
+          id?: string
+          manual_verification_enabled?: boolean | null
+          settlement_period?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -441,6 +562,85 @@ export type Database = {
             columns: ["campus_id"]
             isOneToOne: false
             referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settlements: {
+        Row: {
+          campus_id: string
+          canteen_id: string
+          commission_amount: number | null
+          created_at: string | null
+          created_by: string | null
+          id: string
+          net_payable: number | null
+          notes: string | null
+          paid_at: string | null
+          payment_reference: string | null
+          period_end: string
+          period_start: string
+          status: string | null
+          total_orders: number | null
+          total_sales: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          campus_id: string
+          canteen_id: string
+          commission_amount?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          net_payable?: number | null
+          notes?: string | null
+          paid_at?: string | null
+          payment_reference?: string | null
+          period_end: string
+          period_start: string
+          status?: string | null
+          total_orders?: number | null
+          total_sales?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          campus_id?: string
+          canteen_id?: string
+          commission_amount?: number | null
+          created_at?: string | null
+          created_by?: string | null
+          id?: string
+          net_payable?: number | null
+          notes?: string | null
+          paid_at?: string | null
+          payment_reference?: string | null
+          period_end?: string
+          period_start?: string
+          status?: string | null
+          total_orders?: number | null
+          total_sales?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settlements_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campus_public_info"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlements_campus_id_fkey"
+            columns: ["campus_id"]
+            isOneToOne: false
+            referencedRelation: "campuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settlements_canteen_id_fkey"
+            columns: ["canteen_id"]
+            isOneToOne: false
+            referencedRelation: "canteens"
             referencedColumns: ["id"]
           },
         ]
@@ -551,6 +751,11 @@ export type Database = {
       cleanup_expired_admin_sessions: { Args: never; Returns: number }
       cleanup_old_orders: { Args: never; Returns: number }
       cleanup_orders_older_than_48h: { Args: never; Returns: number }
+      get_pending_verification_count: { Args: never; Returns: number }
+      get_super_admin_stats: {
+        Args: { p_campus_id?: string; p_canteen_id?: string }
+        Returns: Json
+      }
       get_user_campus_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
