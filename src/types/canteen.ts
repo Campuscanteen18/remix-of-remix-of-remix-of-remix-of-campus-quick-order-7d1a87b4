@@ -51,8 +51,8 @@ export interface College {
   code: string;
 }
 
-// Updated role types
-export type UserRole = 'student' | 'admin' | 'kiosk';
+// Updated role types - includes super_admin for platform-wide access
+export type UserRole = 'student' | 'admin' | 'kiosk' | 'super_admin';
 
 export interface User {
   id: string;
