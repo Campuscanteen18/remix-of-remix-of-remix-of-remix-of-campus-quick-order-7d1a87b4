@@ -37,16 +37,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchUserRole = useCallback(async (userId: string): Promise<UserRole> => {
+ // REPLACE THIS FUNCTION INSIDE AuthContext.tsx
+const fetchUserRole = useCallback(async (userId: string): Promise<UserRole> => {
+    console.log("🔍 FETCHING ROLE FOR:", userId);
+
     const { data, error } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
       .maybeSingle();
 
-    if (error) return "student";
+    // --- DEBUGGING LOGS ---
+    if (error) {
+        console.error("❌ SUPABASE ERROR:", error);
+        console.log("⚠️ Defaulting to 'student' due to error.");
+        return "student";
+    }
+
+    console.log("✅ ROLE FOUND IN DB:", data?.role);
+    // ----------------------
+
     return mapRole(data?.role);
-  }, []);
+}, []);
 
   const setFromSession = useCallback(
     async (nextSession: Session | null) => {
