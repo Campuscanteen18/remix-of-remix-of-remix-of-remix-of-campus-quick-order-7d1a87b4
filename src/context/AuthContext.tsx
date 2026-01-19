@@ -10,6 +10,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isKiosk: boolean;
+  isSuperAdmin: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   signup: (email: string, password: string, fullName: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -21,7 +22,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const mapRole = (role: unknown): UserRole => {
-  if (role === "admin" || role === "kiosk" || role === "student") return role;
+  if (role === "admin" || role === "kiosk" || role === "student" || role === "super_admin") return role;
   return "student";
 };
 
@@ -223,6 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isAuthenticated = !!user;
   const isAdmin = user?.role === "admin";
   const isKiosk = user?.role === "kiosk";
+  const isSuperAdmin = user?.role === "super_admin";
 
   const value = useMemo<AuthContextType>(
     () => ({
@@ -232,6 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated,
       isAdmin,
       isKiosk,
+      isSuperAdmin,
       login,
       signup,
       logout,
@@ -239,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       changePassword,
       requestPasswordReset,
     }),
-    [user, session, isLoading, isAuthenticated, isAdmin, isKiosk, login, signup, logout, updateUser, changePassword, requestPasswordReset]
+    [user, session, isLoading, isAuthenticated, isAdmin, isKiosk, isSuperAdmin, login, signup, logout, updateUser, changePassword, requestPasswordReset]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

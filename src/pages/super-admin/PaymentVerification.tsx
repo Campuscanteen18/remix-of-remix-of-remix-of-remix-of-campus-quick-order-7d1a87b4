@@ -126,7 +126,7 @@ export function PaymentVerification() {
       const updateData = actionType === 'approve' 
         ? {
             verification_status: 'approved' as const,
-            payment_status: 'success',
+            payment_status: 'paid',
             verified_at: new Date().toISOString(),
             status: 'confirmed' as const
           }
@@ -134,7 +134,7 @@ export function PaymentVerification() {
             verification_status: 'rejected' as const,
             payment_status: 'failed',
             verified_at: new Date().toISOString(),
-            status: 'pending' as const
+            status: 'cancelled' as const
           };
 
       const { error } = await supabase
@@ -307,7 +307,7 @@ export function PaymentVerification() {
                   <TableRow>
                     <TableHead>Order ID</TableHead>
                     <TableHead>Student</TableHead>
-                    <TableHead>Campus</TableHead>
+                    <TableHead>Campus / Canteen</TableHead>
                     <TableHead>Amount</TableHead>
                     <TableHead>UTR/Reference</TableHead>
                     <TableHead>Time Elapsed</TableHead>
@@ -332,9 +332,10 @@ export function PaymentVerification() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">
-                          {order.campus?.code || 'N/A'}
-                        </Badge>
+                        <div>
+                          <p className="font-medium">{order.campus?.name || order.campus?.code || 'N/A'}</p>
+                          <p className="text-xs text-muted-foreground">{order.canteen?.name || 'No canteen'}</p>
+                        </div>
                       </TableCell>
                       <TableCell className="font-semibold">
                         {formatCurrency(order.total)}

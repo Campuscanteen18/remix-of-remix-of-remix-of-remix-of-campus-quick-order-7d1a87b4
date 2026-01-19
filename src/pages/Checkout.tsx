@@ -2,16 +2,14 @@ import {
   ArrowLeft,
   Minus,
   Plus,
-  Trash2,
   ShoppingBag,
   Loader2,
   AlertCircle,
   Shield,
-  Clock,
-  CheckCircle2,
   Receipt,
   Wallet,
-  CreditCard,
+  Smartphone,
+  CheckCircle2,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,7 +21,6 @@ import { useToast } from "@/hooks/use-toast";
 import { useStockCheck } from "@/hooks/useStockCheck";
 import { useOrders } from "@/hooks/useOrders";
 import { EmptyState } from "@/components/EmptyState";
-import { supabase } from "@/integrations/supabase/client";
 import { Separator } from "@/components/ui/separator";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
 
@@ -120,7 +117,7 @@ export default function Checkout() {
         return;
       }
 
-      await handleStripePayment();
+      await handleUpiPayment();
     } catch (error) {
       toast({
         title: "Error",
@@ -132,14 +129,14 @@ export default function Checkout() {
     }
   };
 
-  const handleStripePayment = async () => {
+  const handleUpiPayment = async () => {
     setIsInitiatingPayment(true);
 
     try {
       const order = await createOrder({
         items: [...cart],
         total: totalPrice,
-        paymentMethod: "STRIPE",
+        paymentMethod: "UPI",
       });
 
       if (!order) {
@@ -151,39 +148,12 @@ export default function Checkout() {
         return;
       }
 
-      const redirectUrl = `${window.location.origin}/order-success?orderId=${order.id}`;
-
-      const { data, error } = await supabase.functions.invoke("stripe-payment", {
-        body: {
-          amount: totalPrice,
-          orderId: order.id,
-          redirectUrl,
-        },
-      });
-
-      if (error || !data?.success) {
-        console.error("Payment initiation error:", error || data?.error);
-        toast({
-          title: "Payment Error",
-          description: data?.error || "Could not initiate payment. Please try again.",
-          variant: "destructive",
-        });
-        return;
-      }
-
       setCurrentOrder(order);
-      // Don't clear cart here - it will be cleared after payment verification in OrderSuccess
-
-      if (data.redirectUrl) {
-        // Extract the path from the full URL for internal navigation (no white screen)
-        const url = new URL(data.redirectUrl);
-        const internalPath = url.pathname + url.search;
-        navigate(internalPath);
-      } else {
-        navigate("/order-success");
-      }
+      
+      // Navigate to payment page with order details
+      navigate(`/payment?orderId=${order.id}&amount=${totalPrice}`);
     } catch (error) {
-      console.error("Stripe payment error:", error);
+      console.error("UPI payment error:", error);
       toast({
         title: "Error",
         description: "Payment initiation failed. Please try again.",
@@ -342,23 +312,20 @@ export default function Checkout() {
             </div>
 
             <motion.div variants={itemVariants} className="relative group cursor-pointer">
-              <div className="absolute inset-0 bg-[#635bff]/5 rounded-2xl ring-2 ring-[#635bff] pointer-events-none" />
+              <div className="absolute inset-0 bg-green-500/5 rounded-2xl ring-2 ring-green-500 pointer-events-none" />
               <div className="relative p-4 flex items-center gap-4 bg-card rounded-2xl">
-                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-[#635bff] to-[#8b5cf6] p-2 flex items-center justify-center shadow-sm">
-                  <CreditCard className="w-6 h-6 text-white" />
+                <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 p-2 flex items-center justify-center shadow-sm">
+                  <Smartphone className="w-6 h-6 text-white" />
                 </div>
 
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-bold">Stripe Payments</h3>
-                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-600 border border-amber-500/20">
-                      TEST
-                    </span>
+                    <h3 className="font-bold">UPI Payment</h3>
                   </div>
-                  <p className="text-xs text-muted-foreground">Cards, UPI & More</p>
+                  <p className="text-xs text-muted-foreground">GPay, PhonePe, Paytm & More</p>
                 </div>
 
-                <div className="h-5 w-5 rounded-full bg-[#635bff] flex items-center justify-center">
+                <div className="h-5 w-5 rounded-full bg-green-500 flex items-center justify-center">
                   <CheckCircle2 size={12} className="text-white" />
                 </div>
               </div>
@@ -366,7 +333,7 @@ export default function Checkout() {
 
             <div className="flex items-center justify-center gap-2 py-2 text-muted-foreground/60">
               <Shield size={12} />
-              <span className="text-[10px] uppercase tracking-widest font-semibold">100% Secure Payment</span>
+              <span className="text-[10px] uppercase tracking-widest font-semibold">Manual Verification</span>
             </div>
           </section>
         </motion.div>
@@ -382,7 +349,7 @@ export default function Checkout() {
 
           <motion.div className="flex-[1.5]" whileTap={{ scale: 0.98 }}>
             <Button
-              className="w-full h-14 rounded-xl text-base font-bold bg-[#635bff] hover:bg-[#5851ea] text-white shadow-lg shadow-[#635bff]/20 transition-all"
+              className="w-full h-14 rounded-xl text-base font-bold bg-green-600 hover:bg-green-700 text-white shadow-lg shadow-green-500/20 transition-all"
               onClick={handleOpenGateway}
               disabled={isCreating || isCheckingStock || isInitiatingPayment}
             >
@@ -396,7 +363,7 @@ export default function Checkout() {
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
-                  Pay with Stripe <ArrowLeft className="rotate-180" size={18} />
+                  Pay with UPI <ArrowLeft className="rotate-180" size={18} />
                 </span>
               )}
             </Button>
