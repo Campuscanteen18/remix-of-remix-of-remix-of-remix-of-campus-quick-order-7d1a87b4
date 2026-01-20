@@ -112,8 +112,10 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
           // Removed 'orderNumber' (doesn't exist in type)
           qrCode: dbOrder.order_number, 
           total: dbOrder.total_amount || 0,
-          // Force cast the status
-          status: (dbOrder.status === 'cancelled' ? 'cancelled' : dbOrder.status) as Order['status'],
+          // Force cast the status (simplified token system)
+          status: (['pending', 'confirmed', 'collected', 'cancelled'].includes(dbOrder.status) 
+            ? dbOrder.status 
+            : 'pending') as Order['status'],
           paymentMethod: dbOrder.payment_status === 'paid' ? 'online' : 'cash',
           isUsed: dbOrder.is_used || dbOrder.status === 'collected',
           createdAt: new Date(dbOrder.created_at),

@@ -100,7 +100,8 @@ export function SuperAdminOrders() {
       query = query.eq('canteen_id', filters.canteenId);
     }
     if (statusFilter !== 'all') {
-      query = query.eq('status', statusFilter as 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled');
+      // Simplified token system - only 4 statuses
+      query = query.eq('status', statusFilter as 'pending' | 'confirmed' | 'collected' | 'cancelled');
     }
 
     const { data, error } = await query;
@@ -149,20 +150,20 @@ export function SuperAdminOrders() {
     }).format(value);
   };
 
+  // Simplified token system - only 4 statuses with clearer labels
   const getStatusBadge = (status: string) => {
-    const configs: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock }> = {
-      pending: { variant: 'secondary', icon: Clock },
-      confirmed: { variant: 'outline', icon: CheckCircle },
-      preparing: { variant: 'default', icon: ChefHat },
-      ready: { variant: 'default', icon: Package },
-      collected: { variant: 'default', icon: CheckCircle },
+    const configs: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock; label: string }> = {
+      pending: { variant: 'secondary', icon: Clock, label: 'Pending' },
+      confirmed: { variant: 'default', icon: CheckCircle, label: 'Approved' },
+      collected: { variant: 'outline', icon: Package, label: 'Collected' },
+      cancelled: { variant: 'destructive', icon: XCircle, label: 'Failed' },
     };
     const config = configs[status] || configs.pending;
     const Icon = config.icon;
     return (
       <Badge variant={config.variant} className="gap-1">
         <Icon className="h-3 w-3" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {config.label}
       </Badge>
     );
   };
@@ -187,10 +188,10 @@ export function SuperAdminOrders() {
     );
   });
 
-  // Stats
+  // Simplified stats for token system
   const totalOrders = orders.length;
   const pendingOrders = orders.filter(o => o.status === 'pending').length;
-  const preparingOrders = orders.filter(o => ['confirmed', 'preparing'].includes(o.status)).length;
+  const confirmedOrders = orders.filter(o => o.status === 'confirmed').length;
   const completedOrders = orders.filter(o => o.status === 'collected').length;
 
   return (
@@ -225,8 +226,8 @@ export function SuperAdminOrders() {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">In Progress</div>
-            <div className="text-2xl font-bold text-blue-600">{preparingOrders}</div>
+            <div className="text-sm text-muted-foreground">Approved</div>
+            <div className="text-2xl font-bold text-blue-600">{confirmedOrders}</div>
           </CardContent>
         </Card>
         <Card>
@@ -255,10 +256,9 @@ export function SuperAdminOrders() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="preparing">Preparing</SelectItem>
-                  <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="confirmed">Approved</SelectItem>
                   <SelectItem value="collected">Collected</SelectItem>
+                  <SelectItem value="cancelled">Failed</SelectItem>
                 </SelectContent>
               </Select>
               <div className="relative w-full sm:w-64">
