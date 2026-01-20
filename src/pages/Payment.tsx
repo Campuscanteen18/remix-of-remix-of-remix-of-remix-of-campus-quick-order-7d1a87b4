@@ -123,7 +123,7 @@ export default function Payment() {
     }
   };
 
-  const handleSubmitVerification = async () => {
+const handleSubmitVerification = async () => {
     if (!orderId) {
       toast({
         title: 'Error',
@@ -173,6 +173,7 @@ export default function Payment() {
           utr_number: utrNumber.trim(),
           verification_status: 'pending',
           payment_status: 'pending',
+          status: 'pending', // <--- FIXED: Used valid type 'pending' instead of 'payment_pending'
           notes: screenshotUrl ? `Screenshot: ${screenshotUrl}` : null,
         })
         .eq('id', orderId);
