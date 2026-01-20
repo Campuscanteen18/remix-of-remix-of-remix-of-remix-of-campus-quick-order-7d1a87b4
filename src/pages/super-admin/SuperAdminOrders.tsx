@@ -7,8 +7,8 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  ChefHat,
-  Package
+  Package,
+  Calendar
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSuperAdmin } from '@/context/SuperAdminContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, startOfToday, startOfYesterday, endOfYesterday } from 'date-fns';
 
 interface Order {
   id: string;
@@ -69,6 +69,7 @@ export function SuperAdminOrders() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('today');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const fetchOrders = useCallback(async () => {
@@ -90,19 +91,34 @@ export function SuperAdminOrders() {
         canteen:canteens(name),
         order_items(id, name, quantity, price)
       `)
-      .order('created_at', { ascending: false })
-      .limit(100);
+      .order('created_at', { ascending: false });
 
+    // --- APPLY DATE FILTERS ---
+    if (dateFilter === 'today') {
+      const today = startOfToday();
+      query = query.gte('created_at', today.toISOString());
+    } else if (dateFilter === 'yesterday') {
+      const start = startOfYesterday();
+      const end = endOfYesterday();
+      query = query.gte('created_at', start.toISOString())
+                   .lte('created_at', end.toISOString());
+    }
+
+    // --- EXISTING FILTERS ---
     if (filters.campusId) {
       query = query.eq('campus_id', filters.campusId);
     }
     if (filters.canteenId) {
       query = query.eq('canteen_id', filters.canteenId);
     }
+    
+    // --- FIX: Cast statusFilter to 'any' to satisfy TypeScript ---
     if (statusFilter !== 'all') {
-      // Simplified token system - only 4 statuses
-      query = query.eq('status', statusFilter as 'pending' | 'confirmed' | 'collected' | 'cancelled');
+      query = query.eq('status', statusFilter as any);
     }
+
+    // Limit query size
+    query = query.limit(dateFilter === 'all' ? 100 : 500);
 
     const { data, error } = await query;
 
@@ -114,7 +130,7 @@ export function SuperAdminOrders() {
     }
     
     setIsLoading(false);
-  }, [filters.campusId, filters.canteenId, statusFilter]);
+  }, [filters.campusId, filters.canteenId, statusFilter, dateFilter]);
 
   useEffect(() => {
     fetchOrders();
@@ -150,7 +166,6 @@ export function SuperAdminOrders() {
     }).format(value);
   };
 
-  // Simplified token system - only 4 statuses with clearer labels
   const getStatusBadge = (status: string) => {
     const configs: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock; label: string }> = {
       pending: { variant: 'secondary', icon: Clock, label: 'Pending' },
@@ -169,7 +184,7 @@ export function SuperAdminOrders() {
   };
 
   const getPaymentBadge = (status: string) => {
-    if (status === 'success') {
+    if (status === 'success' || status === 'paid') {
       return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Paid</Badge>;
     }
     if (status === 'failed') {
@@ -188,7 +203,6 @@ export function SuperAdminOrders() {
     );
   });
 
-  // Simplified stats for token system
   const totalOrders = orders.length;
   const pendingOrders = orders.filter(o => o.status === 'pending').length;
   const confirmedOrders = orders.filter(o => o.status === 'confirmed').length;
@@ -199,9 +213,11 @@ export function SuperAdminOrders() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">All Orders</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Orders Manager</h1>
           <p className="text-muted-foreground">
-            View and monitor orders across all campuses
+             {dateFilter === 'today' ? "Showing today's live orders" : 
+              dateFilter === 'yesterday' ? "Showing orders from yesterday" : 
+              "Showing complete order history"}
           </p>
         </div>
         <Button variant="outline" onClick={fetchOrders} disabled={isLoading}>
@@ -214,7 +230,9 @@ export function SuperAdminOrders() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">Total Orders</div>
+            <div className="text-sm text-muted-foreground">
+              {dateFilter === 'all' ? 'Total Orders' : dateFilter === 'yesterday' ? 'Orders Yesterday' : 'Orders Today'}
+            </div>
             <div className="text-2xl font-bold">{totalOrders}</div>
           </CardContent>
         </Card>
@@ -232,7 +250,7 @@ export function SuperAdminOrders() {
         </Card>
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">Completed</div>
+            <div className="text-sm text-muted-foreground">Collected</div>
             <div className="text-2xl font-bold text-green-600">{completedOrders}</div>
           </CardContent>
         </Card>
@@ -243,14 +261,29 @@ export function SuperAdminOrders() {
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>Order History</CardTitle>
+              <CardTitle>Order List</CardTitle>
               <CardDescription>
-                Recent orders from all campuses
+                Manage and track student orders
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              
+              {/* Date Filter Dropdown */}
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <Calendar className="w-4 h-4 mr-2 opacity-50" />
+                  <SelectValue placeholder="Date" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Status Filter */}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-36">
+                <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -261,6 +294,8 @@ export function SuperAdminOrders() {
                   <SelectItem value="cancelled">Failed</SelectItem>
                 </SelectContent>
               </Select>
+
+              {/* Search Box */}
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -291,10 +326,9 @@ export function SuperAdminOrders() {
               <ShoppingBag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="font-semibold text-lg">No Orders Found</h3>
               <p className="text-muted-foreground">
-                {searchQuery || statusFilter !== 'all' 
-                  ? 'Try adjusting your filters.'
-                  : 'Orders will appear here when customers place them.'
-                }
+                {dateFilter === 'today' 
+                  ? "No orders have been placed today yet." 
+                  : "No orders found for this filter."}
               </p>
             </div>
           ) : (

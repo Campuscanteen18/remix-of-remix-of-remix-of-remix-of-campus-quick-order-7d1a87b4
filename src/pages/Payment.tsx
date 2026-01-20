@@ -12,7 +12,8 @@ import {
   Loader2,
   Shield,
   FileImage,
-  X
+  X,
+  XCircle // Added Icon
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,7 +25,8 @@ import { useCampus } from '@/context/CampusContext';
 import { useCart } from '@/context/CartContext';
 import { QRCodeSVG } from 'qrcode.react';
 
-type PaymentStage = 'pay' | 'verify' | 'submitting' | 'pending' | 'approved';
+// Added 'rejected' to the type
+type PaymentStage = 'pay' | 'verify' | 'submitting' | 'pending' | 'approved' | 'rejected';
 
 export default function Payment() {
   const navigate = useNavigate();
@@ -51,7 +53,8 @@ export default function Payment() {
 
   // Poll for order status after submission
   useEffect(() => {
-    if (stage !== 'pending' || !orderId) return;
+    // We poll if pending OR if we just landed here to check current status
+    if (!orderId) return;
 
     const checkOrderStatus = async () => {
       const { data } = await supabase
@@ -63,10 +66,14 @@ export default function Payment() {
       if (data) {
         setOrderData({ order_number: data.order_number, status: data.status });
         
-        // If payment is verified/approved, show success
-        if (data.verification_status === 'approved' && data.payment_status === 'paid') {
+        // 1. Success Case
+        if (data.verification_status === 'approved' || data.payment_status === 'paid') {
           setStage('approved');
           clearCart();
+        } 
+        // 2. Rejection Case (The Missing Piece!)
+        else if (data.verification_status === 'rejected' || data.status === 'cancelled') {
+           setStage('rejected');
         }
       }
     };
@@ -74,9 +81,11 @@ export default function Payment() {
     // Check immediately
     checkOrderStatus();
 
-    // Then poll every 5 seconds
-    const interval = setInterval(checkOrderStatus, 5000);
-    return () => clearInterval(interval);
+    // Then poll every 3 seconds if we are waiting
+    if (stage === 'pending') {
+        const interval = setInterval(checkOrderStatus, 3000);
+        return () => clearInterval(interval);
+    }
   }, [stage, orderId, clearCart]);
 
   const handlePayNow = () => {
@@ -125,20 +134,12 @@ export default function Payment() {
 
 const handleSubmitVerification = async () => {
     if (!orderId) {
-      toast({
-        title: 'Error',
-        description: 'Order ID is missing',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Order ID is missing', variant: 'destructive' });
       return;
     }
 
     if (!utrNumber || utrNumber.length < 10) {
-      toast({
-        title: 'Invalid UTR',
-        description: 'Please enter a valid 12-digit UTR/Reference number',
-        variant: 'destructive',
-      });
+      toast({ title: 'Invalid UTR', description: 'Please enter a valid 12-digit UTR', variant: 'destructive' });
       return;
     }
 
@@ -155,10 +156,7 @@ const handleSubmitVerification = async () => {
           .from('payment-screenshots')
           .upload(fileName, screenshot);
 
-        if (uploadError) {
-          console.error('Screenshot upload error:', uploadError);
-          // Don't fail the whole process if screenshot upload fails
-        } else if (uploadData) {
+        if (!uploadError && uploadData) {
           const { data: urlData } = supabase.storage
             .from('payment-screenshots')
             .getPublicUrl(fileName);
@@ -173,7 +171,7 @@ const handleSubmitVerification = async () => {
           utr_number: utrNumber.trim(),
           verification_status: 'pending',
           payment_status: 'pending',
-          status: 'pending', // <--- FIXED: Used valid type 'pending' instead of 'payment_pending'
+          status: 'pending', 
           notes: screenshotUrl ? `Screenshot: ${screenshotUrl}` : null,
         })
         .eq('id', orderId);
@@ -182,17 +180,13 @@ const handleSubmitVerification = async () => {
 
       toast({
         title: 'Verification Submitted',
-        description: 'Your payment is being verified. You will receive your QR code shortly.',
+        description: 'Your payment is being verified.',
       });
 
       setStage('pending');
     } catch (error) {
       console.error('Verification submission error:', error);
-      toast({
-        title: 'Submission Failed',
-        description: 'Could not submit verification. Please try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Submission Failed', description: 'Please try again.', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
@@ -200,10 +194,7 @@ const handleSubmitVerification = async () => {
 
   const copyUpiId = () => {
     navigator.clipboard.writeText(upiId);
-    toast({
-      title: 'Copied!',
-      description: 'UPI ID copied to clipboard',
-    });
+    toast({ title: 'Copied!', description: 'UPI ID copied to clipboard' });
   };
 
   return (
@@ -254,12 +245,7 @@ const handleSubmitVerification = async () => {
                     <p className="text-xs text-muted-foreground mb-1.5 uppercase font-medium">Pay to UPI ID</p>
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-mono font-bold text-lg">{upiId}</p>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={copyUpiId}
-                        className="h-8 px-2"
-                      >
+                      <Button variant="ghost" size="sm" onClick={copyUpiId} className="h-8 px-2">
                         <Copy size={14} />
                       </Button>
                     </div>
@@ -278,7 +264,6 @@ const handleSubmitVerification = async () => {
                     This will open your UPI app (GPay, PhonePe, Paytm, etc.)
                   </p>
 
-                  {/* Already Paid Link */}
                   <button
                     onClick={() => setStage('verify')}
                     className="w-full text-sm text-primary hover:underline py-2"
@@ -309,7 +294,6 @@ const handleSubmitVerification = async () => {
                 </div>
 
                 <div className="p-6 space-y-5">
-                  {/* UTR Input */}
                   <div className="space-y-2">
                     <Label htmlFor="utr" className="text-sm font-medium">
                       UTR / Reference Number <span className="text-destructive">*</span>
@@ -325,50 +309,6 @@ const handleSubmitVerification = async () => {
                     <p className="text-xs text-muted-foreground">
                       Find this in your UPI app under transaction details
                     </p>
-                  </div>
-
-                  {/* Screenshot Upload */}
-                  <div className="space-y-2">
-                    <Label className="text-sm font-medium">
-                      Payment Screenshot <span className="text-muted-foreground">(Optional)</span>
-                    </Label>
-                    
-                    {!screenshotPreview ? (
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        className="border-2 border-dashed border-border/50 rounded-xl p-6 text-center cursor-pointer hover:border-primary/50 hover:bg-muted/30 transition-colors"
-                      >
-                        <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-                        <p className="text-sm text-muted-foreground">
-                          Click to upload screenshot
-                        </p>
-                        <p className="text-xs text-muted-foreground/70 mt-1">
-                          PNG, JPG up to 5MB
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="relative rounded-xl overflow-hidden border border-border/50">
-                        <img
-                          src={screenshotPreview}
-                          alt="Payment screenshot"
-                          className="w-full h-40 object-cover"
-                        />
-                        <button
-                          onClick={removeScreenshot}
-                          className="absolute top-2 right-2 w-8 h-8 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center shadow-lg"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    )}
-                    
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
                   </div>
 
                   {/* Submit Button */}
@@ -416,23 +356,48 @@ const handleSubmitVerification = async () => {
                       <span className="text-sm font-medium">Waiting for admin approval...</span>
                     </div>
                   </div>
-
-                  <div className="text-sm text-muted-foreground space-y-1">
-                    <p>UTR: <span className="font-mono font-medium text-foreground">{utrNumber}</span></p>
-                    <p>Amount: <span className="font-medium text-foreground">₹{amount}</span></p>
-                    {orderData?.order_number && (
-                      <p>Order: <span className="font-mono font-medium text-foreground">#{orderData.order_number}</span></p>
-                    )}
-                  </div>
                 </div>
+              </div>
+            </motion.div>
+          )}
 
-                <div className="p-4 bg-muted/30 border-t border-border/50">
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => navigate('/my-orders')}
+          {/* NEW Stage: Rejected / Failed */}
+          {stage === 'rejected' && (
+             <motion.div
+              key="rejected"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-md"
+            >
+              <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
+                <div className="p-8 text-center">
+                  <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
+                    <XCircle className="w-10 h-10 text-red-500" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-red-600 mb-2">Payment Rejected</h2>
+                  <p className="text-muted-foreground mb-6">
+                    The admin could not verify your payment with the UTR provided.
+                  </p>
+
+                  <div className="p-4 bg-red-50 rounded-xl mb-6 border border-red-100">
+                     <p className="text-sm text-red-700">
+                        Please ensure you transferred <strong>₹{amount}</strong> and entered the correct UTR number.
+                     </p>
+                  </div>
+
+                  <Button 
+                    onClick={() => setStage('verify')} 
+                    className="w-full h-12 font-bold mb-3"
                   >
-                    View My Orders
+                    Try Again
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => navigate('/menu')} 
+                    className="w-full"
+                  >
+                    Cancel Order
                   </Button>
                 </div>
               </div>
@@ -460,17 +425,11 @@ const handleSubmitVerification = async () => {
                   </motion.div>
                   <h2 className="text-2xl font-bold text-green-600 mb-2">Payment Verified!</h2>
                   <p className="text-muted-foreground mb-6">
-                    Show this QR code at the counter to collect your order.
+                    Show this QR code at the counter.
                   </p>
 
-                  {/* QR Code */}
                   <div className="bg-white p-6 rounded-2xl inline-block shadow-sm border">
-                    <QRCodeSVG
-                      value={orderId || ''}
-                      size={180}
-                      level="H"
-                      includeMargin
-                    />
+                    <QRCodeSVG value={orderId || ''} size={180} level="H" includeMargin />
                   </div>
 
                   <div className="mt-6 p-4 bg-muted/50 rounded-xl">
@@ -478,20 +437,10 @@ const handleSubmitVerification = async () => {
                     <p className="text-2xl font-bold font-mono">#{orderData.order_number}</p>
                   </div>
                 </div>
-
+                
                 <div className="p-4 bg-muted/30 border-t border-border/50 space-y-2">
-                  <Button
-                    className="w-full"
-                    onClick={() => navigate('/my-orders')}
-                  >
+                  <Button className="w-full" onClick={() => navigate('/my-orders')}>
                     View My Orders
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    onClick={() => navigate('/menu')}
-                  >
-                    Order More
                   </Button>
                 </div>
               </div>

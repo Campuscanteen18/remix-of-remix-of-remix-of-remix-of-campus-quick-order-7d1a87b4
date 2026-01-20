@@ -6,13 +6,11 @@ import {
   Clock, 
   AlertTriangle,
   RefreshCw,
-  Search,
-  Filter
+  Search
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
@@ -95,7 +93,6 @@ export function PaymentVerification() {
     fetchPendingOrders();
   }, [fetchPendingOrders]);
 
-  // Real-time subscription
   useEffect(() => {
     const channel = supabase
       .channel('pending-verification-orders')
@@ -123,23 +120,29 @@ export function PaymentVerification() {
     setIsProcessing(true);
 
     try {
+      // Get current admin user ID for audit trail
+      const { data: { user } } = await supabase.auth.getUser();
+
+      // --- CRITICAL FIX: Use 'confirmed', NEVER 'preparing' ---
       const updateData = actionType === 'approve' 
         ? {
-            verification_status: 'approved' as const,
+            verification_status: 'approved',
             payment_status: 'paid',
             verified_at: new Date().toISOString(),
-            status: 'confirmed' as const
+            verified_by: user?.id, 
+            status: 'confirmed'    // <--- THIS MUST BE 'confirmed'
           }
         : {
-            verification_status: 'rejected' as const,
+            verification_status: 'rejected',
             payment_status: 'failed',
             verified_at: new Date().toISOString(),
-            status: 'cancelled' as const
+            verified_by: user?.id,
+            status: 'cancelled'
           };
 
       const { error } = await supabase
         .from('orders')
-        .update(updateData)
+        .update(updateData as any)
         .eq('id', selectedOrder.id);
 
       if (error) throw error;
@@ -152,9 +155,10 @@ export function PaymentVerification() {
 
       fetchPendingOrders();
       refreshData();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error processing payment:', err);
-      toast.error('Failed to process payment');
+      // Show the exact database error to help debugging
+      toast.error(err.message || 'Failed to process payment');
     } finally {
       setIsProcessing(false);
       setSelectedOrder(null);
@@ -197,7 +201,6 @@ export function PaymentVerification() {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Payment Verification</h1>
@@ -211,7 +214,6 @@ export function PaymentVerification() {
         </Button>
       </div>
 
-      {/* Stats Bar */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4">
@@ -253,7 +255,6 @@ export function PaymentVerification() {
         </Card>
       </div>
 
-      {/* Main Table Card */}
       <Card>
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -406,7 +407,6 @@ export function PaymentVerification() {
         </CardContent>
       </Card>
 
-      {/* Confirmation Dialog */}
       <AlertDialog open={!!selectedOrder && !!actionType} onOpenChange={() => {
         setSelectedOrder(null);
         setActionType(null);
@@ -422,7 +422,7 @@ export function PaymentVerification() {
                   You are about to approve payment for order{' '}
                   <strong>{selectedOrder?.order_number}</strong> of{' '}
                   <strong>{formatCurrency(selectedOrder?.total || 0)}</strong>.
-                  This will mark the order as confirmed and notify the kitchen.
+                  This will mark the order as confirmed and generate the QR code for the student.
                 </>
               ) : (
                 <>

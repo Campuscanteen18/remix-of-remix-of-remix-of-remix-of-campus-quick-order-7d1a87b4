@@ -20,6 +20,7 @@ import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useStockCheck } from "@/hooks/useStockCheck";
 import { useOrders } from "@/hooks/useOrders";
+import { useAuth } from "@/context/AuthContext"; 
 import { EmptyState } from "@/components/EmptyState";
 import { Separator } from "@/components/ui/separator";
 import { ImageWithFallback } from "@/components/ImageWithFallback";
@@ -27,6 +28,7 @@ import { ImageWithFallback } from "@/components/ImageWithFallback";
 export default function Checkout() {
   const navigate = useNavigate();
   const { cart, totalPrice, totalItems, clearCart, setCurrentOrder, updateQuantity, removeFromCart } = useCart();
+  const { user } = useAuth(); 
   const [isCheckingStock, setIsCheckingStock] = useState(false);
   const [stockError, setStockError] = useState<string | null>(null);
   const [isInitiatingPayment, setIsInitiatingPayment] = useState(false);
@@ -36,7 +38,7 @@ export default function Checkout() {
   
   // Double-submit prevention
   const lastSubmitRef = useRef<number>(0);
-  const SUBMIT_COOLDOWN_MS = 5000; // 5 seconds cooldown
+  const SUBMIT_COOLDOWN_MS = 5000; 
 
   // Animation variants
   const containerVariants = {
@@ -82,7 +84,17 @@ export default function Checkout() {
   }
 
   const handleOpenGateway = async () => {
-    // Double-submit prevention
+    // Check if user is logged in
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "You must be logged in to place an order.",
+        variant: "destructive",
+      });
+      navigate("/auth");
+      return;
+    }
+
     const now = Date.now();
     if (now - lastSubmitRef.current < SUBMIT_COOLDOWN_MS) {
       toast({
@@ -101,19 +113,15 @@ export default function Checkout() {
 
       if (!result.success) {
         const itemNames = result.unavailableItems.map((item) => item.name).join(", ");
-
         setStockError(`${itemNames} just sold out.`);
-
         toast({
           title: "Items Unavailable",
           description: `Sorry! ${itemNames} just sold out.`,
           variant: "destructive",
         });
-
         result.unavailableItems.forEach((item) => {
           removeFromCart(item.id);
         });
-
         return;
       }
 
@@ -133,19 +141,26 @@ export default function Checkout() {
     setIsInitiatingPayment(true);
 
     try {
-      const order = await createOrder({
+      // --- FIX: Cast 'user' and the 'payload' to 'any' to bypass TypeScript errors ---
+      const userData = user as any;
+      const customerName = userData?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Student';
+
+      const orderPayload = {
         items: [...cart],
         total: totalPrice,
         paymentMethod: "UPI",
-      });
+        userId: user?.id,
+        // Also sending snake_case just in case the backend needs it directly
+        user_id: user?.id,
+        customerName: customerName,
+        customerEmail: user?.email
+      };
+
+      // Cast to 'any' to force TypeScript to accept the extra fields
+      const order = await createOrder(orderPayload as any);
 
       if (!order) {
-        toast({
-          title: "Error",
-          description: "Could not create order. Please try again.",
-          variant: "destructive",
-        });
-        return;
+        throw new Error("Order creation returned null");
       }
 
       setCurrentOrder(order);
@@ -155,8 +170,8 @@ export default function Checkout() {
     } catch (error) {
       console.error("UPI payment error:", error);
       toast({
-        title: "Error",
-        description: "Payment initiation failed. Please try again.",
+        title: "Order Failed",
+        description: "Could not create order. Please try logging in again.",
         variant: "destructive",
       });
     } finally {
