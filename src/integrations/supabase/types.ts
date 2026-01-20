@@ -782,13 +782,7 @@ export type Database = {
     Enums: {
       app_role: "student" | "admin" | "kiosk" | "super_admin"
       day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat"
-      order_status:
-        | "pending"
-        | "confirmed"
-        | "preparing"
-        | "ready"
-        | "collected"
-        | "cancelled"
+      order_status: "pending" | "confirmed" | "collected" | "cancelled"
       time_period: "breakfast" | "lunch" | "snacks" | "dinner"
     }
     CompositeTypes: {
@@ -919,14 +913,7 @@ export const Constants = {
     Enums: {
       app_role: ["student", "admin", "kiosk", "super_admin"],
       day_of_week: ["mon", "tue", "wed", "thu", "fri", "sat"],
-      order_status: [
-        "pending",
-        "confirmed",
-        "preparing",
-        "ready",
-        "collected",
-        "cancelled",
-      ],
+      order_status: ["pending", "confirmed", "collected", "cancelled"],
       time_period: ["breakfast", "lunch", "snacks", "dinner"],
     },
   },

@@ -33,7 +33,8 @@ const menuItemUpdateSchema = z.object({
   description: z.string().max(1000).optional(),
 });
 
-const orderStatusSchema = z.enum(['pending', 'confirmed', 'preparing', 'ready', 'collected', 'cancelled']);
+// Simplified token system - no preparing/ready states
+const orderStatusSchema = z.enum(['pending', 'confirmed', 'collected', 'cancelled']);
 
 // Types matching Supabase schema
 interface MenuItem {
@@ -58,7 +59,8 @@ interface Order {
   campus_id: string;
   user_id: string | null;
   order_number: string;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled';
+  // Token system uses simplified statuses: pending -> confirmed -> collected (or cancelled)
+  status: 'pending' | 'confirmed' | 'collected' | 'cancelled';
   total: number;
   qr_code: string | null;
   is_used: boolean;
@@ -304,12 +306,12 @@ export function useAdminOrders() {
   });
 }
 
-// Update order status
+// Update order status (simplified token system)
 export function useUpdateOrderStatus() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled' }) => {
+    mutationFn: async ({ id, status }: { id: string; status: 'pending' | 'confirmed' | 'collected' | 'cancelled' }) => {
       // Validate status
       const statusResult = orderStatusSchema.safeParse(status);
       if (!statusResult.success) {
