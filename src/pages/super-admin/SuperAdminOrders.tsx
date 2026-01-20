@@ -112,12 +112,10 @@ export function SuperAdminOrders() {
       query = query.eq('canteen_id', filters.canteenId);
     }
     
-    // --- FIX: Cast statusFilter to 'any' to satisfy TypeScript ---
     if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter as any);
     }
 
-    // Limit query size
     query = query.limit(dateFilter === 'all' ? 100 : 500);
 
     const { data, error } = await query;
@@ -203,9 +201,11 @@ export function SuperAdminOrders() {
     );
   });
 
+  // --- UPDATED STATS CALCULATIONS ---
   const totalOrders = orders.length;
-  const pendingOrders = orders.filter(o => o.status === 'pending').length;
+  // const pendingOrders = orders.filter(o => o.status === 'pending').length; // Removed
   const confirmedOrders = orders.filter(o => o.status === 'confirmed').length;
+  const rejectedOrders = orders.filter(o => o.status === 'cancelled').length; // Added Rejected count
   const completedOrders = orders.filter(o => o.status === 'collected').length;
 
   return (
@@ -226,8 +226,9 @@ export function SuperAdminOrders() {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - REARRANGED: Total -> Approved -> Rejected -> Collected */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 1. Total */}
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground">
@@ -236,18 +237,24 @@ export function SuperAdminOrders() {
             <div className="text-2xl font-bold">{totalOrders}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">Pending</div>
-            <div className="text-2xl font-bold text-amber-600">{pendingOrders}</div>
-          </CardContent>
-        </Card>
+
+        {/* 2. Approved (Moved Left) */}
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground">Approved</div>
             <div className="text-2xl font-bold text-blue-600">{confirmedOrders}</div>
           </CardContent>
         </Card>
+
+        {/* 3. Rejected (Replaced Pending & Moved Right) */}
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-sm text-muted-foreground">Rejected</div>
+            <div className="text-2xl font-bold text-destructive">{rejectedOrders}</div>
+          </CardContent>
+        </Card>
+
+        {/* 4. Collected */}
         <Card>
           <CardContent className="p-4">
             <div className="text-sm text-muted-foreground">Collected</div>
@@ -268,7 +275,6 @@ export function SuperAdminOrders() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               
-              {/* Date Filter Dropdown */}
               <Select value={dateFilter} onValueChange={setDateFilter}>
                 <SelectTrigger className="w-[140px]">
                   <Calendar className="w-4 h-4 mr-2 opacity-50" />
@@ -281,7 +287,6 @@ export function SuperAdminOrders() {
                 </SelectContent>
               </Select>
 
-              {/* Status Filter */}
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Status" />
@@ -295,7 +300,6 @@ export function SuperAdminOrders() {
                 </SelectContent>
               </Select>
 
-              {/* Search Box */}
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
