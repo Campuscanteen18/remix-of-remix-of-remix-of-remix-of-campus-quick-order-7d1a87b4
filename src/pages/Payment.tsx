@@ -11,7 +11,8 @@ import {
   Loader2,
   Shield,
   X,
-  XCircle
+  XCircle,
+  ScanLine // Added icon for scanning
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -40,15 +41,25 @@ export default function Payment() {
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isCompressing, setIsCompressing] = useState(false); // Shows loading while shrinking image
+  const [isCompressing, setIsCompressing] = useState(false);
   const [orderData, setOrderData] = useState<{ order_number: string; status: string } | null>(null);
+  const [isMobile, setIsMobile] = useState(false); // Detect device type
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const upiId = (campus?.settings as { payment?: { upi_id?: string } })?.payment?.upi_id || 'biteos@upi';
   const merchantName = 'BiteOS';
 
-  // --- COMPRESSION FUNCTION (The Magic Part) ---
+  // Construct UPI URL (Used for both Button and QR Code)
+  const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`Order ${orderId?.slice(-8) || 'Payment'}`)}`;
+
+  // --- Device Detection ---
+  useEffect(() => {
+    const checkMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    setIsMobile(checkMobile);
+  }, []);
+
+  // --- Compression Logic ---
   const compressImage = async (file: File): Promise<File> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -58,7 +69,6 @@ export default function Payment() {
         const ctx = canvas.getContext('2d');
         if (!ctx) { reject(new Error('Canvas error')); return; }
 
-        // Resize: Max width 800px (Plenty for reading text)
         const MAX_WIDTH = 800;
         const scaleSize = MAX_WIDTH / img.width;
         canvas.width = scaleSize < 1 ? MAX_WIDTH : img.width;
@@ -66,19 +76,17 @@ export default function Payment() {
 
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-        // Compress: JPEG at 60% quality
         canvas.toBlob((blob) => {
           if (!blob) {
             reject(new Error('Compression failed'));
             return;
           }
-          // Convert blob back to File
           const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, ".jpg"), {
             type: 'image/jpeg',
             lastModified: Date.now(),
           });
           resolve(compressedFile);
-        }, 'image/jpeg', 0.6); // 0.6 = 60% quality (Good balance)
+        }, 'image/jpeg', 0.6);
       };
       img.onerror = (err) => reject(err);
     });
@@ -117,37 +125,32 @@ export default function Payment() {
 
   const handlePayNow = () => {
     if (!amount) return;
-    const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`Order ${orderId?.slice(-8) || 'Payment'}`)}`;
+    // On mobile, this opens the app. On desktop, this does nothing useful, so we rely on the QR code.
     window.location.href = upiUrl;
-    setTimeout(() => { setStage('verify'); }, 1000);
+    // We don't auto-move to 'verify' on desktop, user clicks manually
+    if (isMobile) {
+      setTimeout(() => { setStage('verify'); }, 1000);
+    }
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setIsCompressing(true); // Start loading spinner
+      setIsCompressing(true);
       try {
-        // Log original size
         console.log(`Original: ${(file.size / 1024).toFixed(2)} KB`);
-
-        // Compress it!
         const compressedFile = await compressImage(file);
-        
-        // Log new size
         console.log(`Compressed: ${(compressedFile.size / 1024).toFixed(2)} KB`);
-
         setScreenshot(compressedFile);
         
-        // Preview logic
         const reader = new FileReader();
         reader.onloadend = () => { setScreenshotPreview(reader.result as string); };
         reader.readAsDataURL(compressedFile);
-        
       } catch (error) {
         console.error("Compression failed", error);
-        toast({ title: 'Error', description: 'Could not process image. Try a smaller one.', variant: 'destructive' });
+        toast({ title: 'Error', description: 'Could not process image.', variant: 'destructive' });
       } finally {
-        setIsCompressing(false); // Stop loading spinner
+        setIsCompressing(false);
       }
     }
   };
@@ -159,16 +162,8 @@ export default function Payment() {
   };
 
   const handleSubmitVerification = async () => {
-    if (!orderId) {
-      toast({ title: 'Error', description: 'Order ID missing', variant: 'destructive' });
-      return;
-    }
-    if (!utrNumber || utrNumber.length < 10) {
-      toast({ title: 'Invalid UTR', description: 'Please enter valid 12-digit UTR', variant: 'destructive' });
-      return;
-    }
-    if (!screenshot) {
-      toast({ title: 'Screenshot Required', description: 'Please upload the payment proof.', variant: 'destructive' });
+    if (!orderId || !utrNumber || utrNumber.length < 10 || !screenshot) {
+      toast({ title: 'Missing Details', description: 'Please fill all fields and upload screenshot.', variant: 'destructive' });
       return;
     }
 
@@ -178,15 +173,11 @@ export default function Payment() {
       const fileExt = screenshot.name.split('.').pop();
       const fileName = `${orderId}-${Date.now()}.${fileExt}`;
       
-      // Upload to UPPERCASE bucket
       const { error: uploadError, data: uploadData } = await supabase.storage
         .from('PAYMENT-SCREENSHOTS') 
         .upload(fileName, screenshot);
 
-      if (uploadError) {
-        console.error("Upload Error:", uploadError);
-        throw new Error(`Upload failed: ${uploadError.message}.`);
-      }
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
 
       const { data: urlData } = supabase.storage
         .from('PAYMENT-SCREENSHOTS')
@@ -244,6 +235,7 @@ export default function Payment() {
       <main className="flex-1 flex items-center justify-center p-4 overflow-y-auto">
         <AnimatePresence mode="wait">
           
+          {/* STAGE 1: PAY (With Mobile vs Desktop Logic) */}
           {stage === 'pay' && (
             <motion.div key="pay" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="w-full max-w-md">
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
@@ -252,7 +244,9 @@ export default function Payment() {
                   <p className="text-sm opacity-80">Pay via UPI</p>
                   <p className="text-4xl font-bold mt-1">₹{amount || '0'}</p>
                 </div>
-                <div className="p-6 space-y-4">
+                
+                <div className="p-6 space-y-6">
+                  {/* UPI ID Display */}
                   <div className="p-4 bg-muted/50 rounded-xl border border-border/50 flex justify-between items-center">
                      <div>
                        <p className="text-xs text-muted-foreground uppercase font-medium">UPI ID</p>
@@ -260,17 +254,39 @@ export default function Payment() {
                      </div>
                      <Button variant="ghost" size="sm" onClick={copyUpiId}><Copy size={16}/></Button>
                   </div>
-                  <Button onClick={handlePayNow} className="w-full h-14 text-lg font-bold rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-lg">
-                    Pay Now
-                  </Button>
-                  <button onClick={() => setStage('verify')} className="w-full text-sm text-primary hover:underline py-2">
-                    Already paid? Enter UTR
-                  </button>
+
+                  {/* --- SMART BRANCHING: Mobile vs Desktop --- */}
+                  {isMobile ? (
+                    // MOBILE VIEW: Show Pay Button
+                    <Button onClick={handlePayNow} className="w-full h-14 text-lg font-bold rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-lg">
+                      Pay Now with App
+                    </Button>
+                  ) : (
+                    // DESKTOP VIEW: Show QR Code
+                    <div className="text-center space-y-4">
+                      <div className="bg-white p-4 rounded-xl border inline-block shadow-sm">
+                        <QRCodeSVG value={upiUrl} size={180} level="M" />
+                      </div>
+                      <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
+                        <ScanLine size={16} /> Scan with PhonePe / GPay / Paytm
+                      </p>
+                      <Button onClick={() => setStage('verify')} className="w-full h-12 font-bold rounded-xl">
+                        I Have Paid
+                      </Button>
+                    </div>
+                  )}
+
+                  {isMobile && (
+                    <button onClick={() => setStage('verify')} className="w-full text-sm text-primary hover:underline py-2">
+                      Already paid? Enter UTR
+                    </button>
+                  )}
                 </div>
               </div>
             </motion.div>
           )}
 
+          {/* Other stages (verify, pending, etc.) remain exactly the same as before */}
           {stage === 'verify' && (
             <motion.div key="verify" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="w-full max-w-md">
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
