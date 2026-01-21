@@ -407,6 +407,7 @@ export type Database = {
           payment_status: string | null
           platform_fee: number | null
           qr_code: string | null
+          rejection_reason: string | null
           status: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at: string
@@ -431,6 +432,7 @@ export type Database = {
           payment_status?: string | null
           platform_fee?: number | null
           qr_code?: string | null
+          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at?: string
@@ -455,6 +457,7 @@ export type Database = {
           payment_status?: string | null
           platform_fee?: number | null
           qr_code?: string | null
+          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total?: number
           updated_at?: string
@@ -782,7 +785,13 @@ export type Database = {
     Enums: {
       app_role: "student" | "admin" | "kiosk" | "super_admin"
       day_of_week: "mon" | "tue" | "wed" | "thu" | "fri" | "sat"
-      order_status: "pending" | "confirmed" | "collected" | "cancelled"
+      order_status:
+        | "pending"
+        | "confirmed"
+        | "collected"
+        | "cancelled"
+        | "preparing"
+        | "ready"
       time_period: "breakfast" | "lunch" | "snacks" | "dinner"
     }
     CompositeTypes: {
@@ -913,7 +922,14 @@ export const Constants = {
     Enums: {
       app_role: ["student", "admin", "kiosk", "super_admin"],
       day_of_week: ["mon", "tue", "wed", "thu", "fri", "sat"],
-      order_status: ["pending", "confirmed", "collected", "cancelled"],
+      order_status: [
+        "pending",
+        "confirmed",
+        "collected",
+        "cancelled",
+        "preparing",
+        "ready",
+      ],
       time_period: ["breakfast", "lunch", "snacks", "dinner"],
     },
   },
