@@ -12,7 +12,8 @@ import {
   Shield,
   X,
   XCircle,
-  ScanLine // Added icon for scanning
+  ScanLine,
+  ArrowRight
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,13 +25,13 @@ import { useCampus } from '@/context/CampusContext';
 import { useCart } from '@/context/CartContext';
 import { QRCodeSVG } from 'qrcode.react';
 
-type PaymentStage = 'pay' | 'verify' | 'submitting' | 'pending' | 'approved' | 'rejected';
+type PaymentStage = 'pay' | 'confirming' | 'verify' | 'submitting' | 'pending' | 'approved' | 'rejected';
 
 export default function Payment() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const orderId = searchParams.get('orderId');
-  const amount = searchParams.get('amount');
+  const amountParam = searchParams.get('amount'); // Raw string from URL
   
   const { campus } = useCampus();
   const { clearCart } = useCart();
@@ -43,15 +44,32 @@ export default function Payment() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [orderData, setOrderData] = useState<{ order_number: string; status: string } | null>(null);
-  const [isMobile, setIsMobile] = useState(false); // Detect device type
+  const [isMobile, setIsMobile] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const upiId = (campus?.settings as { payment?: { upi_id?: string } })?.payment?.upi_id || 'biteos@upi';
+  // --- UPDATED: Using your real UPI ID as the fallback ---
+  const upiId = (campus?.settings as { payment?: { upi_id?: string } })?.payment?.upi_id || 'jana20055@axl';
   const merchantName = 'BiteOS';
 
-  // Construct UPI URL (Used for both Button and QR Code)
-  const upiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(merchantName)}&am=${amount}&cu=INR&tn=${encodeURIComponent(`Order ${orderId?.slice(-8) || 'Payment'}`)}`;
+  // --- 1. ROBUST UPI INTENT GENERATOR ---
+  const generateUpiUrl = () => {
+    if (!amountParam || !orderId) return '';
+    
+    // FIX: Strict Amount Formatting (PhonePe requires "20.00", not "20")
+    const formattedAmount = parseFloat(amountParam).toFixed(2);
+    
+    const params = new URLSearchParams();
+    params.append('pa', upiId);                      // Payee Address
+    params.append('pn', merchantName);               // Payee Name
+    params.append('am', formattedAmount);            // Amount (Decimal Fixed)
+    params.append('cu', 'INR');                      // Currency
+    params.append('tn', `Order ${orderData?.order_number || 'Food'}`); // Note visible to user
+
+    return `upi://pay?${params.toString()}`;
+  };
+
+  const upiUrl = generateUpiUrl();
 
   // --- Device Detection ---
   useEffect(() => {
@@ -124,12 +142,14 @@ export default function Payment() {
 
 
   const handlePayNow = () => {
-    if (!amount) return;
-    // On mobile, this opens the app. On desktop, this does nothing useful, so we rely on the QR code.
+    if (!amountParam) return;
+    
+    // Trigger the UPI Intent
     window.location.href = upiUrl;
-    // We don't auto-move to 'verify' on desktop, user clicks manually
+    
+    // Change UI to "Confirming" state to guide user back
     if (isMobile) {
-      setTimeout(() => { setStage('verify'); }, 1000);
+      setStage('confirming');
     }
   };
 
@@ -138,9 +158,7 @@ export default function Payment() {
     if (file) {
       setIsCompressing(true);
       try {
-        console.log(`Original: ${(file.size / 1024).toFixed(2)} KB`);
         const compressedFile = await compressImage(file);
-        console.log(`Compressed: ${(compressedFile.size / 1024).toFixed(2)} KB`);
         setScreenshot(compressedFile);
         
         const reader = new FileReader();
@@ -235,14 +253,14 @@ export default function Payment() {
       <main className="flex-1 flex items-center justify-center p-4 overflow-y-auto">
         <AnimatePresence mode="wait">
           
-          {/* STAGE 1: PAY (With Mobile vs Desktop Logic) */}
+          {/* STAGE 1: PAY */}
           {stage === 'pay' && (
             <motion.div key="pay" initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} className="w-full max-w-md">
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
                 <div className="bg-gradient-to-r from-green-500 to-emerald-600 p-6 text-white text-center">
                   <Smartphone className="w-12 h-12 mx-auto mb-3 opacity-90" />
                   <p className="text-sm opacity-80">Pay via UPI</p>
-                  <p className="text-4xl font-bold mt-1">₹{amount || '0'}</p>
+                  <p className="text-4xl font-bold mt-1">₹{parseFloat(amountParam || '0').toFixed(2)}</p>
                 </div>
                 
                 <div className="p-6 space-y-6">
@@ -255,20 +273,19 @@ export default function Payment() {
                      <Button variant="ghost" size="sm" onClick={copyUpiId}><Copy size={16}/></Button>
                   </div>
 
-                  {/* --- SMART BRANCHING: Mobile vs Desktop --- */}
                   {isMobile ? (
-                    // MOBILE VIEW: Show Pay Button
+                    // MOBILE: Pay Button
                     <Button onClick={handlePayNow} className="w-full h-14 text-lg font-bold rounded-xl bg-green-600 hover:bg-green-700 text-white shadow-lg">
                       Pay Now with App
                     </Button>
                   ) : (
-                    // DESKTOP VIEW: Show QR Code
+                    // DESKTOP: QR Code
                     <div className="text-center space-y-4">
                       <div className="bg-white p-4 rounded-xl border inline-block shadow-sm">
                         <QRCodeSVG value={upiUrl} size={180} level="M" />
                       </div>
                       <p className="text-sm text-muted-foreground flex items-center justify-center gap-2">
-                        <ScanLine size={16} /> Scan with PhonePe / GPay / Paytm
+                        <ScanLine size={16} /> Scan with any UPI App
                       </p>
                       <Button onClick={() => setStage('verify')} className="w-full h-12 font-bold rounded-xl">
                         I Have Paid
@@ -278,7 +295,7 @@ export default function Payment() {
 
                   {isMobile && (
                     <button onClick={() => setStage('verify')} className="w-full text-sm text-primary hover:underline py-2">
-                      Already paid? Enter UTR
+                      Enter details manually
                     </button>
                   )}
                 </div>
@@ -286,14 +303,38 @@ export default function Payment() {
             </motion.div>
           )}
 
-          {/* Other stages (verify, pending, etc.) remain exactly the same as before */}
+          {/* STAGE 1.5: CONFIRMING (New Mobile Interstitial) */}
+          {stage === 'confirming' && (
+            <motion.div key="confirming" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md">
+              <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-8 text-center">
+                <div className="w-20 h-20 rounded-full bg-blue-500/10 flex items-center justify-center mx-auto mb-4 animate-pulse">
+                  <Smartphone className="w-10 h-10 text-blue-500" />
+                </div>
+                <h2 className="text-2xl font-bold mb-2">Completing Payment...</h2>
+                <p className="text-muted-foreground mb-6">
+                  We've opened your UPI app. Once you complete the payment, come back here.
+                </p>
+                
+                <div className="space-y-3">
+                  <Button onClick={() => setStage('verify')} className="w-full h-12 font-bold rounded-xl bg-primary">
+                    I Have Paid <ArrowRight className="ml-2 w-4 h-4" />
+                  </Button>
+                  <Button variant="ghost" onClick={() => setStage('pay')} className="w-full text-muted-foreground">
+                    Cancel / Retry
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* STAGE 2: VERIFY */}
           {stage === 'verify' && (
             <motion.div key="verify" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="w-full max-w-md">
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
                 <div className="p-4 border-b border-border/50 flex items-center gap-3">
                   <button onClick={() => setStage('pay')}><ArrowLeft size={18} /></button>
                   <h2 className="font-semibold">Verify Payment</h2>
-                  <span className="ml-auto font-bold text-green-600">₹{amount}</span>
+                  <span className="ml-auto font-bold text-green-600">₹{parseFloat(amountParam || '0').toFixed(2)}</span>
                 </div>
 
                 <div className="p-6 space-y-5">
@@ -339,6 +380,7 @@ export default function Payment() {
             </motion.div>
           )}
 
+          {/* STAGE 3: PENDING */}
           {stage === 'pending' && (
             <motion.div key="pending" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-md">
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-8 text-center">
@@ -355,6 +397,7 @@ export default function Payment() {
             </motion.div>
           )}
 
+          {/* STAGE 4: REJECTED */}
           {stage === 'rejected' && (
              <motion.div key="rejected" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-md">
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-8 text-center">
@@ -369,6 +412,7 @@ export default function Payment() {
             </motion.div>
           )}
 
+          {/* STAGE 5: APPROVED */}
           {stage === 'approved' && orderData && (
             <motion.div key="approved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-md">
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-8 text-center">
