@@ -49,7 +49,7 @@ export default function Payment() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // --- UPDATED: Using your real UPI ID as the fallback ---
-  const upiId = (campus?.settings as { payment?: { upi_id?: string } })?.payment?.upi_id || 'jana20055@axl';
+  const upiId = (campus?.settings as { payment?: { upi_id?: string } })?.payment?.upi_id || 'Q032734428@ybl';
   const merchantName = 'BiteOS';
 
   // --- 1. ROBUST UPI INTENT GENERATOR ---
