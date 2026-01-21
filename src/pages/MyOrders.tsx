@@ -36,7 +36,7 @@ interface Order {
   status: string;
   payment_status: string;
   verification_status: string;
-  rejection_reason?: string | null; // Added rejection reason
+  rejection_reason?: string | null; 
   created_at: string;
   items: OrderItem[];
   campus: { name: string };
@@ -72,7 +72,7 @@ export default function MyOrders() {
       const formattedOrders: Order[] = (data || []).map((order: any) => ({
         id: order.id,
         order_number: order.order_number,
-        total: order.total,
+        total: order.total || order.amount, // Fallback for amount column
         status: order.status,
         payment_status: order.payment_status,
         verification_status: order.verification_status,
@@ -80,7 +80,7 @@ export default function MyOrders() {
         created_at: order.created_at,
         campus: order.campus,
         canteen: order.canteen,
-        items: order.order_items || []
+        items: order.order_items || order.items || [] // Fallback for items
       }));
 
       setOrders(formattedOrders);
@@ -120,13 +120,11 @@ export default function MyOrders() {
   };
 
   // --- UI Helpers ---
-  const getStatusConfig = (status: string) => {
-    switch (status) {
-      case 'confirmed': return { label: 'Approved', className: 'bg-green-100 text-green-700 border-green-200' };
-      case 'collected': return { label: 'Collected', className: 'bg-gray-100 text-gray-700 border-gray-200' };
-      case 'cancelled': return { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
-      default: return { label: 'Pending', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
-    }
+  const getStatusConfig = (status: string, verification: string) => {
+    if (status === 'collected') return { label: 'Collected', className: 'bg-gray-100 text-gray-700 border-gray-200' };
+    if (status === 'cancelled' || verification === 'rejected') return { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
+    if (status === 'confirmed' || status === 'approved' || verification === 'approved') return { label: 'Approved', className: 'bg-green-100 text-green-700 border-green-200' };
+    return { label: 'Pending', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
   };
 
   return (
@@ -164,9 +162,14 @@ export default function MyOrders() {
           </div>
         ) : (
           orders.map((order) => {
-            const statusConfig = getStatusConfig(order.status);
+            const statusConfig = getStatusConfig(order.status, order.verification_status);
             const isExpired = isOrderExpired(order.created_at);
+            
+            // LOGIC FLAGS
             const isRejected = order.status === 'cancelled' || order.verification_status === 'rejected';
+            const isCollected = order.status === 'collected';
+            // Order is 'ready' if it is approved/confirmed AND not collected yet
+            const isReady = (order.status === 'confirmed' || order.status === 'approved' || order.verification_status === 'approved') && !isCollected;
 
             return (
               <Card key={order.id} className="border-none shadow-sm overflow-hidden">
@@ -183,7 +186,7 @@ export default function MyOrders() {
                         </div>
                         <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
                           <Clock size={12} />
-                          {format(new Date(order.created_at), 'h:mm a')} • {order.canteen?.name}
+                          {format(new Date(order.created_at), 'h:mm a')} • {order.canteen?.name || 'Canteen'}
                         </p>
                       </div>
                       <span className="font-bold text-lg text-primary">₹{order.total}</span>
@@ -224,14 +227,24 @@ export default function MyOrders() {
                           </div>
                         </div>
                       </div>
-                    ) : order.status === 'confirmed' ? (
-                      // 2. CONFIRMED STATE (Check Expiry)
+                    ) : isCollected ? (
+                      // 2. COLLECTED STATE (NEW)
+                      <div className="bg-gray-100 p-3 rounded-xl border border-gray-200 flex items-center justify-between">
+                         <div className="flex items-center gap-2">
+                            <CheckCircle2 className="h-5 w-5 text-gray-500" />
+                            <div>
+                               <p className="font-semibold text-sm text-gray-700">Order Collected</p>
+                               <p className="text-xs text-gray-500">Enjoy your meal!</p>
+                            </div>
+                         </div>
+                      </div>
+                    ) : isReady ? (
+                      // 3. READY STATE (Confirmed/Approved)
                       isExpired ? (
                         <div className="bg-gray-100 p-3 rounded-xl border border-gray-200 text-center">
                           <p className="text-sm font-medium text-gray-500 flex items-center justify-center gap-1">
                             <AlertCircle size={16} /> QR Code Expired
                           </p>
-                          {/* FIXED: Replaced '>' with '&gt;' to fix syntax error */}
                           <p className="text-xs text-gray-400 mt-1">Order placed &gt;5 hours ago</p>
                         </div>
                       ) : (
@@ -252,7 +265,7 @@ export default function MyOrders() {
                         </div>
                       )
                     ) : (
-                      // 3. PENDING STATE
+                      // 4. PENDING STATE (Default Fallback)
                       <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-center">
                         <p className="text-sm font-medium text-yellow-700 flex items-center justify-center gap-2">
                           <Clock size={16} /> Awaiting Verification
