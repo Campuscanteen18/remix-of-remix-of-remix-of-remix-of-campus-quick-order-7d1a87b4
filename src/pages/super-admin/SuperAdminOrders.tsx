@@ -54,7 +54,6 @@ interface Order {
   verification_status: string;
   created_at: string;
   campus?: { name: string; code: string };
-  canteen?: { name: string };
   order_items?: Array<{
     id: string;
     name: string;
@@ -88,7 +87,6 @@ export function SuperAdminOrders() {
         verification_status,
         created_at,
         campus:campuses(name, code),
-        canteen:canteens(name),
         order_items(id, name, quantity, price)
       `)
       .order('created_at', { ascending: false });
@@ -104,12 +102,9 @@ export function SuperAdminOrders() {
                    .lte('created_at', end.toISOString());
     }
 
-    // --- EXISTING FILTERS ---
+    // --- CAMPUS FILTER ---
     if (filters.campusId) {
       query = query.eq('campus_id', filters.campusId);
-    }
-    if (filters.canteenId) {
-      query = query.eq('canteen_id', filters.canteenId);
     }
     
     if (statusFilter !== 'all') {
@@ -128,7 +123,7 @@ export function SuperAdminOrders() {
     }
     
     setIsLoading(false);
-  }, [filters.campusId, filters.canteenId, statusFilter, dateFilter]);
+  }, [filters.campusId, statusFilter, dateFilter]);
 
   useEffect(() => {
     fetchOrders();
@@ -363,12 +358,7 @@ export function SuperAdminOrders() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div>
-                          <Badge variant="outline">{order.campus?.code}</Badge>
-                          {order.canteen && (
-                            <p className="text-xs text-muted-foreground mt-1">{order.canteen.name}</p>
-                          )}
-                        </div>
+                        <Badge variant="outline">{order.campus?.code || 'N/A'}</Badge>
                       </TableCell>
                       <TableCell className="font-semibold">
                         {formatCurrency(order.total)}
@@ -417,9 +407,6 @@ export function SuperAdminOrders() {
                 <div>
                   <p className="text-sm text-muted-foreground">Campus</p>
                   <p className="font-medium">{selectedOrder.campus?.name}</p>
-                  {selectedOrder.canteen && (
-                    <p className="text-sm text-muted-foreground">{selectedOrder.canteen.name}</p>
-                  )}
                 </div>
               </div>
 

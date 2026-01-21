@@ -1,13 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { GlobalFilters, PlatformSettings, DashboardStats, Canteen } from '@/types/superAdmin';
-
-interface Campus {
-  id: string;
-  name: string;
-  code: string;
-  is_active: boolean;
-}
+import { GlobalFilters, PlatformSettings, DashboardStats, Campus } from '@/types/superAdmin';
 
 interface SuperAdminContextType {
   // Global filters
@@ -16,7 +9,6 @@ interface SuperAdminContextType {
   
   // Data
   campuses: Campus[];
-  canteens: Canteen[];
   platformSettings: PlatformSettings | null;
   dashboardStats: DashboardStats | null;
   pendingCount: number;
@@ -34,11 +26,9 @@ const SuperAdminContext = createContext<SuperAdminContextType | undefined>(undef
 export function SuperAdminProvider({ children }: { children: React.ReactNode }) {
   const [filters, setFilters] = useState<GlobalFilters>({
     campusId: null,
-    canteenId: null,
   });
   
   const [campuses, setCampuses] = useState<Campus[]>([]);
-  const [canteens, setCanteens] = useState<Canteen[]>([]);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings | null>(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
@@ -47,30 +37,13 @@ export function SuperAdminProvider({ children }: { children: React.ReactNode }) 
   const fetchCampuses = useCallback(async () => {
     const { data, error } = await supabase
       .from('campuses')
-      .select('id, name, code, is_active')
+      .select('*')
       .order('name');
     
     if (!error && data) {
-      setCampuses(data);
+      setCampuses(data as Campus[]);
     }
   }, []);
-
-  const fetchCanteens = useCallback(async () => {
-    let query = supabase
-      .from('canteens')
-      .select('*, campus:campuses(name, code)')
-      .order('name');
-    
-    if (filters.campusId) {
-      query = query.eq('campus_id', filters.campusId);
-    }
-    
-    const { data, error } = await query;
-    
-    if (!error && data) {
-      setCanteens(data as Canteen[]);
-    }
-  }, [filters.campusId]);
 
   const fetchPlatformSettings = useCallback(async () => {
     const { data, error } = await supabase
@@ -86,13 +59,13 @@ export function SuperAdminProvider({ children }: { children: React.ReactNode }) 
   const fetchDashboardStats = useCallback(async () => {
     const { data, error } = await supabase.rpc('get_super_admin_stats', {
       p_campus_id: filters.campusId,
-      p_canteen_id: filters.canteenId,
+      p_canteen_id: null, // No longer used
     });
     
     if (!error && data) {
       setDashboardStats(data as unknown as DashboardStats);
     }
-  }, [filters.campusId, filters.canteenId]);
+  }, [filters.campusId]);
 
   const fetchPendingCount = useCallback(async () => {
     const { data, error } = await supabase.rpc('get_pending_verification_count');
@@ -106,13 +79,12 @@ export function SuperAdminProvider({ children }: { children: React.ReactNode }) 
     setIsLoading(true);
     await Promise.all([
       fetchCampuses(),
-      fetchCanteens(),
       fetchPlatformSettings(),
       fetchDashboardStats(),
       fetchPendingCount(),
     ]);
     setIsLoading(false);
-  }, [fetchCampuses, fetchCanteens, fetchPlatformSettings, fetchDashboardStats, fetchPendingCount]);
+  }, [fetchCampuses, fetchPlatformSettings, fetchDashboardStats, fetchPendingCount]);
 
   const updatePlatformSettings = useCallback(async (settings: Partial<PlatformSettings>): Promise<boolean> => {
     if (!platformSettings) return false;
@@ -136,9 +108,8 @@ export function SuperAdminProvider({ children }: { children: React.ReactNode }) 
 
   // Refresh when filters change
   useEffect(() => {
-    fetchCanteens();
     fetchDashboardStats();
-  }, [filters.campusId, filters.canteenId, fetchCanteens, fetchDashboardStats]);
+  }, [filters.campusId, fetchDashboardStats]);
 
   // Real-time subscription for pending orders
   useEffect(() => {
@@ -170,7 +141,6 @@ export function SuperAdminProvider({ children }: { children: React.ReactNode }) 
         filters,
         setFilters,
         campuses,
-        canteens,
         platformSettings,
         dashboardStats,
         pendingCount,
