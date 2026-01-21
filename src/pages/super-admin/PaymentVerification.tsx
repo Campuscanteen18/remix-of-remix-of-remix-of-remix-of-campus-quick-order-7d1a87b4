@@ -75,22 +75,19 @@ export function PaymentVerification() {
         customer_name,
         customer_email,
         campus_id,
-        canteen_id,
         total,
         utr_number,
         verification_status,
         payment_status,
         created_at,
         notes, 
-        campus:campuses(name, code),
-        canteen:canteens(name)
+        campus:campuses(name, code)
       `) 
       .eq('verification_status', 'pending')
       .eq('payment_status', 'pending')
       .order('created_at', { ascending: true });
 
     if (filters.campusId) query = query.eq('campus_id', filters.campusId);
-    if (filters.canteenId) query = query.eq('canteen_id', filters.canteenId);
 
     const { data, error } = await query;
 
@@ -101,7 +98,7 @@ export function PaymentVerification() {
       setOrders((data || []) as unknown as OrderWithNotes[]);
     }
     setIsLoading(false);
-  }, [filters.campusId, filters.canteenId]);
+  }, [filters.campusId]);
 
   useEffect(() => { fetchPendingOrders(); }, [fetchPendingOrders]);
 

@@ -68,36 +68,60 @@ export type Database = {
       campuses: {
         Row: {
           address: string | null
+          bank_account_name: string | null
+          bank_account_number: string | null
+          bank_ifsc: string | null
           code: string
+          commission_rate: number | null
           created_at: string
           id: string
           is_active: boolean
           logo_url: string | null
           name: string
+          owner_email: string | null
+          owner_name: string | null
+          owner_phone: string | null
           settings: Json
           updated_at: string
+          upi_id: string | null
         }
         Insert: {
           address?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_ifsc?: string | null
           code: string
+          commission_rate?: number | null
           created_at?: string
           id?: string
           is_active?: boolean
           logo_url?: string | null
           name: string
+          owner_email?: string | null
+          owner_name?: string | null
+          owner_phone?: string | null
           settings?: Json
           updated_at?: string
+          upi_id?: string | null
         }
         Update: {
           address?: string | null
+          bank_account_name?: string | null
+          bank_account_number?: string | null
+          bank_ifsc?: string | null
           code?: string
+          commission_rate?: number | null
           created_at?: string
           id?: string
           is_active?: boolean
           logo_url?: string | null
           name?: string
+          owner_email?: string | null
+          owner_name?: string | null
+          owner_phone?: string | null
           settings?: Json
           updated_at?: string
+          upi_id?: string | null
         }
         Relationships: []
       }
