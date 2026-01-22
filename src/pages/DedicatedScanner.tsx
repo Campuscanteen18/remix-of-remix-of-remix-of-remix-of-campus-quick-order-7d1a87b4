@@ -8,37 +8,51 @@ import { usePrinter } from '@/context/PrinterContext';
 import { LogOut, CheckCircle, XCircle, AlertCircle, RefreshCw, Bluetooth, Volume2, VolumeX, Loader2, Printer } from 'lucide-react';
 import jsQR from 'jsqr';
 
-// Audio feedback
+// Audio feedback using Web Audio API
 const playSuccessSound = () => {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.frequency.setValueAtTime(800, ctx.currentTime);
-    osc.frequency.setValueAtTime(1200, ctx.currentTime + 0.1);
-    gain.gain.setValueAtTime(0.2, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.3);
-  } catch (e) { console.error('Audio error', e); }
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+    oscillator.frequency.setValueAtTime(1000, audioContext.currentTime + 0.1);
+    oscillator.frequency.setValueAtTime(1200, audioContext.currentTime + 0.2);
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.4);
+  } catch (e) {
+    console.log('Audio not supported');
+  }
 };
 
 const playErrorSound = () => {
   try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(200, ctx.currentTime);
-    gain.gain.setValueAtTime(0.3, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.5);
-  } catch (e) { console.error('Audio error', e); }
+    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    
+    oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+    oscillator.frequency.setValueAtTime(300, audioContext.currentTime + 0.15);
+    oscillator.frequency.setValueAtTime(200, audioContext.currentTime + 0.3);
+    
+    gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+    
+    oscillator.start(audioContext.currentTime);
+    oscillator.stop(audioContext.currentTime + 0.5);
+  } catch (e) {
+    console.log('Audio not supported');
+  }
 };
 
 interface OrderItem {
@@ -62,7 +76,7 @@ interface OrderDetails {
 export default function KioskScanner() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { markOrderCollected, verifyQrCode } = useOrdersContext();
+  const { orders, markOrderCollected, getOrderByQR } = useOrdersContext();
   const { logout } = useAuth();
   const { isPrinterConnected, isConnecting, isPrinting, connectPrinter, printTicket } = usePrinter();
   
@@ -70,13 +84,20 @@ export default function KioskScanner() {
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [orderDetails, setOrderDetails] = useState<OrderDetails | null>(null);
-  
-  // Results State
-  const [showResult, setShowResult] = useState(false);
-  const [resultType, setResultType] = useState<'success' | 'invalid' | 'expired' | 'used' | null>(null);
-
+  const [verified, setVerified] = useState(false);
+  const [alreadyUsed, setAlreadyUsed] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
+  const [showResult, setShowResult] = useState(false);
   const [printingOrder, setPrintingOrder] = useState(false);
+
+  // Check if order is expired (older than 5 hours)
+  const isOrderExpired = (createdAt: Date | string) => {
+    const orderDate = typeof createdAt === 'string' ? new Date(createdAt) : createdAt;
+    const now = new Date();
+    const fiveHoursMs = 5 * 60 * 60 * 1000;
+    return now.getTime() - orderDate.getTime() > fiveHoursMs;
+  };
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -86,50 +107,59 @@ export default function KioskScanner() {
   const resultTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const restartCameraRef = useRef<() => void>(() => {});
 
-  const isOrderExpired = (createdAt: string) => {
-    const orderDate = new Date(createdAt);
-    const now = new Date();
-    return (now.getTime() - orderDate.getTime()) > (5 * 60 * 60 * 1000); // 5 hours
-  };
-
   const stopCamera = useCallback(() => {
-    if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
     setCameraActive(false);
   }, []);
 
   const handleScan = useCallback(async (qrData: string) => {
     if (scanning) return;
+
     setScanning(true);
 
     try {
       const cleanedTerm = qrData.replace('ORDER-', '').trim();
 
-      // 1. Check Local Session Duplicate
+      // Check if already scanned in session
       if (scannedOrdersRef.current.has(cleanedTerm)) {
-        setResultType('used');
+        setAlreadyUsed(true);
+        setVerified(false);
         setShowResult(true);
         if (soundEnabled) playErrorSound();
         return;
       }
 
-      // 2. Verify with Database
-      const foundOrder = await verifyQrCode(cleanedTerm);
+      const foundOrder = getOrderByQR(cleanedTerm);
 
       if (!foundOrder) {
-        setResultType('invalid');
+        // We already stopped the camera in handleQRDetected(); show the result screen so
+        // the existing auto-resume logic reliably restarts the camera.
+        setOrderDetails(null);
+        setVerified(false);
+        setAlreadyUsed(false);
         setShowResult(true);
         if (soundEnabled) playErrorSound();
-        
-        toast({
-          title: "Order Not Found",
-          description: `Code: ${cleanedTerm}`,
-          variant: "destructive"
-        });
         return;
       }
 
-      // 3. Prepare Order Object
+      if (scannedOrdersRef.current.has(foundOrder.id) || scannedOrdersRef.current.has(foundOrder.qrCode)) {
+        setAlreadyUsed(true);
+        setVerified(false);
+        setShowResult(true);
+        if (soundEnabled) playErrorSound();
+        return;
+      }
+
       const order: OrderDetails = {
         id: foundOrder.id,
         orderNumber: foundOrder.qrCode,
@@ -148,236 +178,576 @@ export default function KioskScanner() {
 
       setOrderDetails(order);
 
-      // 4. Validate Logic
-      if (isOrderExpired(order.createdAt)) {
-        setResultType('expired');
-        scannedOrdersRef.current.add(cleanedTerm);
-        setShowResult(true);
+      // Check if order is expired (older than 5 hours)
+      if (isOrderExpired(foundOrder.createdAt)) {
+        setIsExpired(true);
+        setAlreadyUsed(false);
+        setVerified(false);
+        scannedOrdersRef.current.add(foundOrder.id);
+        scannedOrdersRef.current.add(foundOrder.qrCode);
         if (soundEnabled) playErrorSound();
+        setShowResult(true);
         return;
       }
 
       if (order.qrUsed) {
-        setResultType('used');
-        scannedOrdersRef.current.add(cleanedTerm);
-        setShowResult(true);
+        setAlreadyUsed(true);
+        setVerified(false);
+        setIsExpired(false);
+        scannedOrdersRef.current.add(foundOrder.id);
+        scannedOrdersRef.current.add(foundOrder.qrCode);
         if (soundEnabled) playErrorSound();
-        return;
+        setShowResult(true);
+      } else {
+        // Valid + unused: stop the camera to prevent double scans while we verify/print
+        stopCamera();
+
+        // Mark as collected
+        markOrderCollected(foundOrder.id);
+        scannedOrdersRef.current.add(foundOrder.id);
+        scannedOrdersRef.current.add(foundOrder.qrCode);
+        setVerified(true);
+        setAlreadyUsed(false);
+        setIsExpired(false);
+        if (soundEnabled) playSuccessSound();
+
+        // Print directly to Bluetooth printer - skip result screen for valid orders
+        if (isPrinterConnected) {
+          setPrintingOrder(true);
+          toast({
+            title: '✓ Order Verified',
+            description: `Order #${order.orderNumber} - Printing ticket...`,
+          });
+          
+          // Print to Bluetooth thermal printer
+          const printData = {
+            orderNumber: order.orderNumber,
+            items: order.items,
+            totalAmount: order.totalAmount,
+            customerName: 'Customer',
+            createdAt: order.createdAt,
+          };
+          
+          printTicket(printData).then((success) => {
+            setPrintingOrder(false);
+            if (success) {
+              toast({
+                title: '🖨️ Printed!',
+                description: `Order #${order.orderNumber} ticket printed successfully`,
+              });
+            }
+            // Restart camera for next scan
+            setTimeout(() => restartCameraRef.current(), 1500);
+          });
+          return; // Don't show result screen
+        } else {
+          // No printer connected - show result screen
+          setShowResult(true);
+          toast({
+            title: '⚠️ No Printer',
+            description: 'Connect Bluetooth printer for auto-printing',
+            variant: 'destructive',
+          });
+        }
       }
-
-      // 5. SUCCESS!
-      stopCamera();
-      markOrderCollected(foundOrder.id);
-      scannedOrdersRef.current.add(cleanedTerm);
-      scannedOrdersRef.current.add(foundOrder.id);
-      
-      setResultType('success');
-      setShowResult(true);
-      if (soundEnabled) playSuccessSound();
-
-      // Auto Print Logic
-      if (isPrinterConnected) {
-        setPrintingOrder(true);
-        toast({ title: '✓ Verified', description: 'Printing ticket...' });
-        
-        const printData = {
-          orderNumber: order.orderNumber,
-          items: order.items,
-          totalAmount: order.totalAmount,
-          customerName: 'Customer',
-          createdAt: order.createdAt,
-        };
-        
-        printTicket(printData).then(() => {
-          setPrintingOrder(false);
-          // Auto restart after print
-          setTimeout(() => restartCameraRef.current(), 1500);
-        });
-      }
-
     } catch (err) {
-      console.error('Scan Error:', err);
-      setCameraError('Scanner crashed. Please restart.');
+      console.error('Scan error:', err);
+      setCameraError('Scan failed');
+      if (soundEnabled) playErrorSound();
     } finally {
-      // Always allow new scans after processing, unless we stopped camera for success
-      if (resultType !== 'success') {
-        setScanning(false);
-      }
+      // IMPORTANT: always unlock scanning, otherwise subsequent scans will be ignored and the camera may stay stopped.
+      setScanning(false);
     }
-  }, [scanning, verifyQrCode, markOrderCollected, soundEnabled, isPrinterConnected, printTicket, toast, stopCamera, resultType]);
+  }, [scanning, getOrderByQR, markOrderCollected, soundEnabled, isPrinterConnected, printTicket, toast, stopCamera]);
 
-  const handleQRDetected = useCallback((qrData: string) => {
-    if (!scanning && !showResult) {
-      handleScan(qrData);
-    }
-  }, [scanning, showResult, handleScan]);
+  const handleQRDetected = useCallback(async (qrData: string) => {
+    // Keep the camera running for INVALID / ALREADY USED overlays.
+    // We only stop the camera when we have a valid, unused order (handled inside handleScan).
+    if (scanning) return;
+    await handleScan(qrData);
+  }, [scanning, handleScan]);
 
   const scanQRFromCamera = useCallback(() => {
     if (!videoRef.current || !canvasRef.current) return;
+    
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
+    
     const scan = () => {
+      // Always schedule next frame first to keep scanning alive
+      animationRef.current = requestAnimationFrame(scan);
+      
       if (!ctx || !streamRef.current || video.readyState !== video.HAVE_ENOUGH_DATA) {
-        animationRef.current = requestAnimationFrame(scan);
         return;
       }
+      
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
       const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: 'dontInvert' });
-
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert',
+      });
+      
       if (code && code.data) {
         handleQRDetected(code.data);
       }
-      animationRef.current = requestAnimationFrame(scan);
     };
+    
     animationRef.current = requestAnimationFrame(scan);
   }, [handleQRDetected]);
 
   const startCamera = useCallback(async () => {
+    // Always stop any previous loop/stream first (important for repeated restarts)
     stopCamera();
+
     setCameraError(null);
+    setOrderDetails(null);
+    setVerified(false);
+    setAlreadyUsed(false);
+    setIsExpired(false);
     setShowResult(false);
-    setResultType(null);
     setScanning(false);
+
+    // Clear any result timeout
+    if (resultTimeoutRef.current) {
+      clearTimeout(resultTimeoutRef.current);
+      resultTimeoutRef.current = null;
+    }
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
       });
+
       streamRef.current = stream;
       setCameraActive(true);
 
-      setTimeout(async () => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.setAttribute('playsinline', 'true');
-          await videoRef.current.play();
-          scanQRFromCamera();
-        }
-      }, 100);
-    } catch (err) {
-      setCameraError('Camera permission denied.');
-    }
-  }, [stopCamera, scanQRFromCamera]);
+      // Wait one frame so the <video> is mounted (it only renders when cameraActive && !showResult)
+      requestAnimationFrame(async () => {
+        const video = videoRef.current;
+        if (!video || !streamRef.current) return;
 
+        // Wait until the video has metadata (so play() reliably works on repeated restarts)
+        const ensureMetadata = () =>
+          new Promise<void>((resolve) => {
+            if (video.readyState >= 1) return resolve();
+            video.onloadedmetadata = function (this: HTMLVideoElement) {
+              // remove handler to avoid stacking
+              this.onloadedmetadata = null;
+              resolve();
+            };
+          });
+
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.muted = true;
+        video.srcObject = streamRef.current;
+
+        try {
+          await ensureMetadata();
+          await video.play();
+          scanQRFromCamera();
+        } catch (err) {
+          console.error('Video play error:', err);
+          setCameraError('Failed to start camera');
+          setCameraActive(false);
+        }
+      });
+    } catch (err) {
+      console.error('Camera error:', err);
+      setCameraActive(false);
+      setCameraError('Camera access denied. Please allow camera permissions.');
+    }
+  }, [scanQRFromCamera, stopCamera]);
+
+  // Auto-start camera on mount
   useEffect(() => {
     startCamera();
-    return () => stopCamera();
+    
+    // Request fullscreen
+    const requestFullscreen = async () => {
+      try {
+        if (document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } catch (e) {
+        // Fullscreen not supported or denied - that's okay
+      }
+    };
+    requestFullscreen();
+    
+    return () => {
+      stopCamera();
+      if (resultTimeoutRef.current) {
+        clearTimeout(resultTimeoutRef.current);
+      }
+    };
   }, []);
 
   const resetAndRestartCamera = useCallback(() => {
+    console.log('Resetting and restarting camera...');
+    // Clear any pending timeout
+    if (resultTimeoutRef.current) {
+      clearTimeout(resultTimeoutRef.current);
+      resultTimeoutRef.current = null;
+    }
+    
+    // Reset all states first
     setShowResult(false);
-    setResultType(null);
+    setCameraError(null);
+    setOrderDetails(null);
+    setVerified(false);
+    setAlreadyUsed(false);
+    setIsExpired(false);
     setScanning(false);
     setPrintingOrder(false);
+    
+    // Start camera fresh
     startCamera();
   }, [startCamera]);
 
+  // Keep the ref updated so handleScan can access the latest restart function
   useEffect(() => {
     restartCameraRef.current = resetAndRestartCamera;
   }, [resetAndRestartCamera]);
 
-  // Auto-Dismiss Invalid/Expired Overlays
+  // Auto clear overlays / resume
   useEffect(() => {
-    if (showResult && resultType !== 'success') {
-      const timer = setTimeout(() => {
-        setShowResult(false);
-        setScanning(false); // Re-enable scanning
-      }, 2500);
-      return () => clearTimeout(timer);
+    if (!showResult) return;
+
+    // Clear any pending timeout first
+    if (resultTimeoutRef.current) {
+      clearTimeout(resultTimeoutRef.current);
+      resultTimeoutRef.current = null;
     }
-  }, [showResult, resultType]);
+
+    if (!verified) {
+      // INVALID / ALREADY USED: keep camera running, just hide the small overlay
+      resultTimeoutRef.current = setTimeout(() => {
+        setShowResult(false);
+      }, 2000);
+    } else {
+      // VERIFIED full-screen (no printer): restart camera after a short delay
+      resultTimeoutRef.current = setTimeout(() => {
+        resetAndRestartCamera();
+      }, 4000);
+    }
+
+    return () => {
+      if (resultTimeoutRef.current) {
+        clearTimeout(resultTimeoutRef.current);
+        resultTimeoutRef.current = null;
+      }
+    };
+  }, [showResult, verified, resetAndRestartCamera]);
+
+  const handleLogout = async () => {
+    stopCamera();
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+    }
+    await logout();
+    navigate('/auth');
+  };
+
+  // Sanitize strings to prevent XSS when building HTML
+  const escapeHtml = (str: string): string => {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  };
+
+  const printToThermalPrinter = (order: OrderDetails) => {
+    const printFrame = document.createElement('iframe');
+    printFrame.style.position = 'absolute';
+    printFrame.style.top = '-10000px';
+    printFrame.style.left = '-10000px';
+    document.body.appendChild(printFrame);
+    
+    const frameDoc = printFrame.contentDocument || printFrame.contentWindow?.document;
+    if (!frameDoc) return;
+
+    // Sanitize all user-controlled data to prevent XSS
+    const sanitizedOrderNumber = escapeHtml(order.orderNumber);
+    const itemsHTML = order.items.map(item => `
+      <div class="item-row">
+        <span>${escapeHtml(item.name)} x${item.quantity}</span>
+        <span>₹${(item.price * item.quantity).toFixed(2)}</span>
+      </div>
+    `).join('');
+
+    frameDoc.open();
+    frameDoc.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Receipt</title>
+        <style>
+          @page { margin: 0; size: 80mm auto; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body {
+            font-family: 'Courier New', 'Lucida Console', monospace;
+            font-size: 12px;
+            line-height: 1.4;
+            width: 80mm;
+            padding: 5mm;
+            background: white;
+            color: black;
+          }
+          .center { text-align: center; }
+          .bold { font-weight: bold; }
+          .large { font-size: 16px; }
+          .xlarge { font-size: 20px; }
+          .divider { border-top: 1px dashed #000; margin: 8px 0; }
+          .double-divider { border-top: 2px solid #000; margin: 8px 0; }
+          .item-row { display: flex; justify-content: space-between; margin: 4px 0; }
+          .total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: bold; margin: 8px 0; }
+          .verified-badge { border: 2px solid #000; padding: 8px; margin: 10px 0; text-align: center; font-size: 18px; font-weight: bold; }
+          .footer { margin-top: 15px; text-align: center; font-size: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="center bold xlarge">🍽️ CANTEEN</div>
+        <div class="center" style="margin-top: 5px;">Order Verification Receipt</div>
+        <div class="divider"></div>
+        
+        <div class="center large bold">${sanitizedOrderNumber}</div>
+        <div class="center" style="font-size: 10px; margin-top: 3px;">
+          ${new Date(order.createdAt).toLocaleDateString()} ${new Date(order.createdAt).toLocaleTimeString()}
+        </div>
+        
+        <div class="verified-badge">✓ VERIFIED</div>
+        
+        <div class="divider"></div>
+        <div style="font-weight: bold; margin-bottom: 5px;">ITEMS:</div>
+        ${itemsHTML}
+        
+        <div class="double-divider"></div>
+        <div class="total-row">
+          <span>TOTAL</span>
+          <span>₹${order.totalAmount.toFixed(2)}</span>
+        </div>
+        <div class="divider"></div>
+        
+        <div class="footer">
+          <p>Verified: ${new Date().toLocaleTimeString()}</p>
+          <p style="margin-top: 5px;">Thank you for your order!</p>
+          <p style="margin-top: 10px;">--- END ---</p>
+        </div>
+        <script>
+          window.onload = function() {
+            window.print();
+            setTimeout(function() {
+              window.parent.document.body.removeChild(window.frameElement);
+            }, 1000);
+          };
+        </script>
+      </body>
+      </html>
+    `);
+    frameDoc.close();
+  };
 
   return (
     <div className="fixed inset-0 bg-black flex flex-col overflow-hidden">
-      {/* 1. HEADER */}
+      {/* Minimal Header */}
       <div className="absolute top-0 left-0 right-0 z-50 flex items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
         <div className="flex items-center gap-2">
-           <div className={`w-3 h-3 rounded-full ${isPrinterConnected ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`} />
-           <span className="text-white font-bold text-sm">{isPrinterConnected ? 'PRINTER READY' : 'NO PRINTER'}</span>
+          <div className={`w-3 h-3 rounded-full ${isPrinterConnected ? 'bg-green-500' : 'bg-yellow-500'} animate-pulse`} />
+          <span className="text-white font-medium text-sm">
+            {isPrinterConnected ? 'PRINTER READY' : 'NO PRINTER'}
+          </span>
         </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="icon" onClick={() => setSoundEnabled(!soundEnabled)} className="text-white">
-            {soundEnabled ? <Volume2 /> : <VolumeX />}
+        
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={connectPrinter}
+            disabled={isConnecting || isPrinterConnected}
+            className="text-white hover:bg-white/20 gap-1"
+          >
+            {isConnecting ? <Loader2 size={18} className="animate-spin" /> : <Bluetooth size={18} />}
+            {isPrinterConnected ? 'Connected' : 'Connect'}
           </Button>
-          <Button variant="ghost" size="icon" onClick={() => { stopCamera(); logout(); navigate('/auth'); }} className="text-white">
-            <LogOut />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            className="text-white hover:bg-white/20"
+          >
+            {soundEnabled ? <Volume2 size={20} /> : <VolumeX size={20} />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleLogout}
+            className="text-white hover:bg-white/20"
+          >
+            <LogOut size={20} />
           </Button>
         </div>
       </div>
 
-      {/* 2. CAMERA VIDEO LAYER (Always render if active) */}
-      {cameraActive && (
-        <video ref={videoRef} className="absolute inset-0 w-full h-full object-cover" muted playsInline />
-      )}
-      <canvas ref={canvasRef} className="hidden" />
-
-      {/* 3. SCANNING RETICLE (Only show when searching) */}
-      {!showResult && cameraActive && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-          <div className="relative w-72 h-72 border-2 border-white/30 rounded-lg">
-             <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-green-500 -mt-1 -ml-1" />
-             <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-green-500 -mt-1 -mr-1" />
-             <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-green-500 -mb-1 -ml-1" />
-             <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-green-500 -mb-1 -mr-1" />
-             {scanning && <div className="absolute inset-x-4 h-0.5 bg-green-500/80 top-1/2 animate-pulse" />}
-          </div>
-          <div className="absolute bottom-20 bg-black/50 text-white px-4 py-2 rounded-full">
-            {scanning ? "Processing..." : "Point at QR Code"}
+      {/* Printing Overlay */}
+      {printingOrder && (
+        <div className="absolute inset-0 z-40 bg-green-600 flex flex-col items-center justify-center">
+          <CheckCircle className="w-24 h-24 text-white mb-4" />
+          <h2 className="text-white text-3xl font-bold mb-2">VERIFIED!</h2>
+          <div className="flex items-center gap-2 text-white/90">
+            <Loader2 className="animate-spin" size={20} />
+            <span className="text-xl">Printing ticket...</span>
           </div>
         </div>
       )}
 
-      {/* 4. ERROR OVERLAYS (Invalid/Expired/Used) - Z-INDEX 40 */}
-      {showResult && resultType !== 'success' && (
-        <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-200">
-           <div className={`p-8 rounded-3xl flex flex-col items-center shadow-2xl ${
-             resultType === 'expired' ? 'bg-orange-600' : 'bg-red-600'
-           }`}>
-              <XCircle className="w-16 h-16 text-white mb-4" />
-              <h2 className="text-2xl font-bold text-white uppercase">{resultType?.replace('-', ' ')}</h2>
-              <p className="text-white/80 mt-2">
-                {resultType === 'invalid' && "Order not found in database"}
-                {resultType === 'used' && "Order already claimed"}
-                {resultType === 'expired' && "Order is too old"}
-              </p>
-           </div>
+      {/* Camera View - Full Screen (keep showing during error overlays) */}
+      {cameraActive && (!showResult || !verified) && (
+        <>
+          <video
+            ref={videoRef}
+            className="absolute inset-0 w-full h-full object-cover"
+            playsInline
+            webkit-playsinline="true"
+            muted
+            autoPlay
+          />
+          <canvas ref={canvasRef} className="hidden" />
+          
+          {/* Scanning Frame */}
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="relative w-72 h-72">
+              {/* Corner brackets */}
+              <div className="absolute top-0 left-0 w-12 h-12 border-t-4 border-l-4 border-primary rounded-tl-lg" />
+              <div className="absolute top-0 right-0 w-12 h-12 border-t-4 border-r-4 border-primary rounded-tr-lg" />
+              <div className="absolute bottom-0 left-0 w-12 h-12 border-b-4 border-l-4 border-primary rounded-bl-lg" />
+              <div className="absolute bottom-0 right-0 w-12 h-12 border-b-4 border-r-4 border-primary rounded-br-lg" />
+              
+              {/* Scanning line animation */}
+              {!showResult && <div className="absolute inset-x-4 h-0.5 bg-primary/80 animate-scan" />}
+            </div>
+          </div>
+          
+          {/* Bottom instruction - hide when showing error result */}
+          {!showResult && (
+            <div className="absolute bottom-8 left-0 right-0 flex justify-center">
+              <div className="bg-black/70 backdrop-blur-sm text-white px-6 py-3 rounded-full text-lg font-medium">
+                Point camera at QR code
+              </div>
+            </div>
+          )}
+
+          {/* Small Error Overlay on Camera - for EXPIRED / ALREADY USED / INVALID */}
+          {showResult && !verified && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className={`${isExpired ? 'bg-orange-600/95' : 'bg-destructive/95'} backdrop-blur-sm rounded-2xl px-8 py-6 flex flex-col items-center shadow-2xl animate-in zoom-in-95 duration-200`}>
+                <XCircle className="w-12 h-12 text-white mb-3" />
+                <h2 className="text-white text-xl font-bold">
+                  {isExpired ? 'EXPIRED' : alreadyUsed ? 'ALREADY USED' : 'INVALID'}
+                </h2>
+                <p className="text-white/80 text-sm mt-1 text-center max-w-[200px]">
+                  {isExpired 
+                    ? 'Token expired (5+ hours old)' 
+                    : alreadyUsed 
+                      ? 'QR already scanned' 
+                      : 'Order not found'}
+                </p>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Camera Error State */}
+      {cameraError && !showResult && (
+        <div className="flex-1 flex flex-col items-center justify-center p-8">
+          <AlertCircle className="w-20 h-20 text-destructive mb-6" />
+          <h2 className="text-white text-2xl font-bold mb-2">Camera Error</h2>
+          <p className="text-white/70 text-center mb-8">{cameraError}</p>
+          <Button onClick={startCamera} size="lg" className="gap-2">
+            <RefreshCw size={20} />
+            Retry Camera
+          </Button>
         </div>
       )}
 
-      {/* 5. SUCCESS SCREEN - Z-INDEX 50 */}
-      {showResult && resultType === 'success' && (
-        <div className="absolute inset-0 z-50 bg-green-600 flex flex-col items-center justify-center p-6 animate-in slide-in-from-bottom-10">
-           <CheckCircle className="w-24 h-24 text-white mb-6 animate-bounce" />
-           <h1 className="text-4xl font-bold text-white">VERIFIED!</h1>
-           {orderDetails && (
-             <div className="mt-6 text-center text-white">
-                <p className="text-2xl font-mono mb-2">#{orderDetails.orderNumber}</p>
-                <div className="bg-white/20 p-4 rounded-xl backdrop-blur-md">
-                   {orderDetails.items.map((item, i) => (
-                     <p key={i} className="text-lg">{item.name} x{item.quantity}</p>
-                   ))}
-                </div>
-             </div>
-           )}
-           <Button onClick={resetAndRestartCamera} size="lg" className="mt-8 bg-white text-green-700 hover:bg-white/90">
-             Scan Next Order
-           </Button>
+      {/* Full Screen Verified Result (only for verified orders without printer) */}
+      {showResult && verified && (
+        <div className="flex-1 flex flex-col items-center justify-center p-8 bg-green-600">
+          <CheckCircle className="w-32 h-32 text-white mb-6 animate-bounce" />
+          <h1 className="text-white text-4xl font-bold mb-4">VERIFIED!</h1>
+          {orderDetails && (
+            <div className="text-white/90 text-center">
+              <p className="text-2xl font-semibold mb-2">Order #{orderDetails.orderNumber}</p>
+              <p className="text-xl">₹{orderDetails.totalAmount}</p>
+              <div className="mt-4 space-y-1">
+                {orderDetails.items.map((item, idx) => (
+                  <p key={idx} className="text-lg">{item.name} × {item.quantity}</p>
+                ))}
+              </div>
+            </div>
+          )}
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={() => {
+              if (orderDetails && isPrinterConnected) {
+                printTicket({
+                  orderNumber: orderDetails.orderNumber,
+                  items: orderDetails.items,
+                  totalAmount: orderDetails.totalAmount,
+                  customerName: 'Customer',
+                  createdAt: orderDetails.createdAt,
+                });
+              } else if (!isPrinterConnected) {
+                toast({
+                  title: 'No Printer',
+                  description: 'Connect Bluetooth printer first',
+                  variant: 'destructive',
+                });
+              }
+            }}
+            disabled={isPrinting || !isPrinterConnected}
+            className="mt-8 gap-2"
+          >
+            {isPrinting ? <Loader2 size={20} className="animate-spin" /> : <Printer size={20} />}
+            {isPrinting ? 'Printing...' : 'Print Receipt'}
+          </Button>
+          
+          {/* Scan Next button */}
+          <div className="absolute bottom-8 left-0 right-0 flex flex-col items-center gap-3">
+            <Button
+              size="lg"
+              onClick={resetAndRestartCamera}
+              className="gap-2 bg-white text-black hover:bg-white/90"
+            >
+              <RefreshCw size={20} />
+              Scan Next
+            </Button>
+            <div className="text-white/60 text-sm">
+              or wait for auto-resume...
+            </div>
+          </div>
         </div>
       )}
 
-      {/* 6. CAMERA ERROR */}
-      {cameraError && (
-        <div className="absolute inset-0 z-50 bg-gray-900 flex flex-col items-center justify-center">
-           <AlertCircle className="w-16 h-16 text-red-500 mb-4" />
-           <p className="text-white mb-6">{cameraError}</p>
-           <Button onClick={startCamera} variant="outline" className="text-white border-white">Retry</Button>
-        </div>
-      )}
+      {/* Add scanning animation styles */}
+      <style>{`
+        @keyframes scan {
+          0%, 100% { top: 1rem; }
+          50% { top: calc(100% - 1rem); }
+        }
+        .animate-scan {
+          animation: scan 2s ease-in-out infinite;
+        }
+      `}</style>
     </div>
   );
 }

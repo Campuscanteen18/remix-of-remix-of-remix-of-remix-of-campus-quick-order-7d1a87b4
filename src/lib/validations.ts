@@ -49,8 +49,8 @@ export const pinSchema = z.string()
   .max(8, { message: 'PIN must be at most 8 digits' })
   .regex(/^\d+$/, { message: 'PIN must contain only digits' });
 
-// Order status validation (simplified token system - no preparing/ready states)
-export const orderStatusSchema = z.enum(['pending', 'confirmed', 'collected', 'cancelled']);
+// Order status validation
+export const orderStatusSchema = z.enum(['pending', 'confirmed', 'preparing', 'ready', 'collected', 'cancelled']);
 
 // Type exports
 export type OrderInput = z.infer<typeof orderSchema>;

@@ -68,60 +68,36 @@ export type Database = {
       campuses: {
         Row: {
           address: string | null
-          bank_account_name: string | null
-          bank_account_number: string | null
-          bank_ifsc: string | null
           code: string
-          commission_rate: number | null
           created_at: string
           id: string
           is_active: boolean
           logo_url: string | null
           name: string
-          owner_email: string | null
-          owner_name: string | null
-          owner_phone: string | null
           settings: Json
           updated_at: string
-          upi_id: string | null
         }
         Insert: {
           address?: string | null
-          bank_account_name?: string | null
-          bank_account_number?: string | null
-          bank_ifsc?: string | null
           code: string
-          commission_rate?: number | null
           created_at?: string
           id?: string
           is_active?: boolean
           logo_url?: string | null
           name: string
-          owner_email?: string | null
-          owner_name?: string | null
-          owner_phone?: string | null
           settings?: Json
           updated_at?: string
-          upi_id?: string | null
         }
         Update: {
           address?: string | null
-          bank_account_name?: string | null
-          bank_account_number?: string | null
-          bank_ifsc?: string | null
           code?: string
-          commission_rate?: number | null
           created_at?: string
           id?: string
           is_active?: boolean
           logo_url?: string | null
           name?: string
-          owner_email?: string | null
-          owner_name?: string | null
-          owner_phone?: string | null
           settings?: Json
           updated_at?: string
-          upi_id?: string | null
         }
         Relationships: []
       }
@@ -417,7 +393,6 @@ export type Database = {
       }
       orders: {
         Row: {
-          amount: number | null
           campus_id: string
           canteen_id: string | null
           commission_amount: number | null
@@ -432,7 +407,6 @@ export type Database = {
           payment_status: string | null
           platform_fee: number | null
           qr_code: string | null
-          rejection_reason: string | null
           status: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at: string
@@ -443,7 +417,6 @@ export type Database = {
           verified_by: string | null
         }
         Insert: {
-          amount?: number | null
           campus_id: string
           canteen_id?: string | null
           commission_amount?: number | null
@@ -458,7 +431,6 @@ export type Database = {
           payment_status?: string | null
           platform_fee?: number | null
           qr_code?: string | null
-          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at?: string
@@ -469,7 +441,6 @@ export type Database = {
           verified_by?: string | null
         }
         Update: {
-          amount?: number | null
           campus_id?: string
           canteen_id?: string | null
           commission_amount?: number | null
@@ -484,7 +455,6 @@ export type Database = {
           payment_status?: string | null
           platform_fee?: number | null
           qr_code?: string | null
-          rejection_reason?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total?: number
           updated_at?: string
@@ -815,10 +785,10 @@ export type Database = {
       order_status:
         | "pending"
         | "confirmed"
-        | "collected"
-        | "cancelled"
         | "preparing"
         | "ready"
+        | "collected"
+        | "cancelled"
       time_period: "breakfast" | "lunch" | "snacks" | "dinner"
     }
     CompositeTypes: {
@@ -952,10 +922,10 @@ export const Constants = {
       order_status: [
         "pending",
         "confirmed",
-        "collected",
-        "cancelled",
         "preparing",
         "ready",
+        "collected",
+        "cancelled",
       ],
       time_period: ["breakfast", "lunch", "snacks", "dinner"],
     },

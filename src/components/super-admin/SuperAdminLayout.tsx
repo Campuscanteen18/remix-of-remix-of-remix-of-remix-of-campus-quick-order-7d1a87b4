@@ -26,6 +26,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -51,7 +52,7 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
-  const { filters, setFilters, campuses, pendingCount, platformSettings } = useSuperAdmin();
+  const { filters, setFilters, campuses, canteens, pendingCount, platformSettings } = useSuperAdmin();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
@@ -65,6 +66,10 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
     }
     return location.pathname.startsWith(path);
   };
+
+  const filteredCanteens = filters.campusId 
+    ? canteens.filter(c => c.campus_id === filters.campusId)
+    : canteens;
 
   return (
     <div className="min-h-screen bg-background flex">
@@ -189,26 +194,50 @@ export function SuperAdminLayout({ children }: SuperAdminLayoutProps) {
               <Menu className="h-5 w-5" />
             </Button>
 
-            {/* Global Campus Filter */}
-            <Select
-              value={filters.campusId || 'all'}
-              onValueChange={(value) => setFilters(prev => ({ 
-                ...prev, 
-                campusId: value === 'all' ? null : value,
-              }))}
-            >
-              <SelectTrigger className="w-[200px] h-9">
-                <SelectValue placeholder="All Campuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Campuses</SelectItem>
-                {campuses.map((campus) => (
-                  <SelectItem key={campus.id} value={campus.id}>
-                    {campus.name} ({campus.code})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* Global Filters */}
+            <div className="flex items-center gap-3">
+              <Select
+                value={filters.campusId || 'all'}
+                onValueChange={(value) => setFilters(prev => ({ 
+                  ...prev, 
+                  campusId: value === 'all' ? null : value,
+                  canteenId: null // Reset canteen when campus changes
+                }))}
+              >
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="All Campuses" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Campuses</SelectItem>
+                  {campuses.map((campus) => (
+                    <SelectItem key={campus.id} value={campus.id}>
+                      {campus.name} ({campus.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={filters.canteenId || 'all'}
+                onValueChange={(value) => setFilters(prev => ({ 
+                  ...prev, 
+                  canteenId: value === 'all' ? null : value 
+                }))}
+                disabled={filteredCanteens.length === 0}
+              >
+                <SelectTrigger className="w-[180px] h-9">
+                  <SelectValue placeholder="All Canteens" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Canteens</SelectItem>
+                  {filteredCanteens.map((canteen) => (
+                    <SelectItem key={canteen.id} value={canteen.id}>
+                      {canteen.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="flex items-center gap-2">

@@ -23,7 +23,6 @@ interface HourlyData {
   revenue: number;
 }
 
-// Simplified token system analytics
 interface TodayAnalytics {
   totalOrders: number;
   totalRevenue: number;
@@ -34,8 +33,8 @@ interface TodayAnalytics {
   peakHour: string;
   completionRate: number;
   pendingOrders: number;
-  confirmedOrders: number;
-  activeOrders: number;
+  preparingOrders: number;
+  readyOrders: number;
   collectedOrders: number;
   currentPeriod: string;
   dateString: string;
@@ -99,8 +98,8 @@ export function useTodayAnalytics() {
         peakHour: '-',
         completionRate: 0,
         pendingOrders: 0,
-        confirmedOrders: 0,
-        activeOrders: 0,
+        preparingOrders: 0,
+        readyOrders: 0,
         collectedOrders: 0,
         currentPeriod: periodNames[currentPeriod] || 'Off Hours',
         dateString,
@@ -142,10 +141,10 @@ export function useTodayAnalytics() {
         ? Math.round((collectedOrdersList.length / ordersList.length) * 100) 
         : 0;
 
-      // Order status counts (simplified token system - no preparing/ready)
-      const pendingOrders = ordersList.filter(o => o.status === 'pending').length;
-      const confirmedOrders = ordersList.filter(o => o.status === 'confirmed').length;
-      const activeOrders = pendingOrders + confirmedOrders;
+      // Order status counts
+      const pendingOrders = ordersList.filter(o => o.status === 'pending' || o.status === 'confirmed').length;
+      const preparingOrders = ordersList.filter(o => o.status === 'preparing').length;
+      const readyOrders = ordersList.filter(o => o.status === 'ready').length;
 
       // Period breakdown
       const periodStats: Record<string, { orders: number; revenue: number }> = {
@@ -239,8 +238,8 @@ export function useTodayAnalytics() {
         peakHour,
         completionRate,
         pendingOrders,
-        confirmedOrders,
-        activeOrders,
+        preparingOrders,
+        readyOrders,
         collectedOrders: collectedOrdersList.length,
         currentPeriod: periodNames[currentPeriod] || 'Off Hours',
         dateString,

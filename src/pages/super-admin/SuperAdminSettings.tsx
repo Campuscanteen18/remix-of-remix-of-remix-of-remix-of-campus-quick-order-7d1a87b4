@@ -5,11 +5,7 @@ import {
   Percent,
   Save,
   AlertCircle,
-  Activity,
-  Shield,
-  Database,
-  Globe,
-  Bell
+  Activity
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
@@ -30,7 +25,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 
 export function SuperAdminSettings() {
-  const { platformSettings, updatePlatformSettings, campuses } = useSuperAdmin();
+  const { platformSettings, updatePlatformSettings } = useSuperAdmin();
   const [isSaving, setIsSaving] = useState(false);
   const [localSettings, setLocalSettings] = useState({
     manual_verification_enabled: platformSettings?.manual_verification_enabled ?? true,
@@ -61,10 +56,6 @@ export function SuperAdminSettings() {
     localSettings.global_commission_rate !== platformSettings?.global_commission_rate ||
     localSettings.settlement_period !== platformSettings?.settlement_period;
 
-  // Calculate platform stats
-  const activeCampuses = campuses.filter(c => c.is_active).length;
-  const totalCampuses = campuses.length;
-
   return (
     <div className="space-y-6">
       {/* Page Header */}
@@ -72,7 +63,7 @@ export function SuperAdminSettings() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Platform Settings</h1>
           <p className="text-muted-foreground">
-            Configure global platform settings and control panel
+            Configure global platform settings and preferences
           </p>
         </div>
         <Button onClick={handleSave} disabled={isSaving || !hasChanges}>
@@ -202,7 +193,7 @@ export function SuperAdminSettings() {
                 <span className="text-muted-foreground">% of order value</span>
               </div>
               <p className="text-xs text-muted-foreground">
-                This is the default rate. Individual campuses can have custom rates.
+                This is the default rate. Individual canteens can have custom rates.
               </p>
             </div>
 
@@ -225,7 +216,7 @@ export function SuperAdminSettings() {
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">
-                How often settlements are generated for campus owners.
+                How often settlements are generated for canteen owners.
               </p>
             </div>
 
@@ -242,7 +233,7 @@ export function SuperAdminSettings() {
                   <span>₹{(100 * localSettings.global_commission_rate / 100).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-medium border-t pt-2">
-                  <span>Campus Receives</span>
+                  <span>Canteen Receives</span>
                   <span>₹{(100 - (100 * localSettings.global_commission_rate / 100)).toFixed(2)}</span>
                 </div>
               </div>
@@ -250,89 +241,12 @@ export function SuperAdminSettings() {
           </CardContent>
         </Card>
 
-        {/* Platform Overview */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-blue-500/10">
-                <Globe className="h-5 w-5 text-blue-600" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Platform Overview</CardTitle>
-                <CardDescription>
-                  Current platform status and statistics
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="p-4 rounded-lg border">
-                <p className="text-sm text-muted-foreground">Active Campuses</p>
-                <p className="text-2xl font-bold">{activeCampuses}</p>
-                <p className="text-xs text-muted-foreground mt-1">of {totalCampuses} total</p>
-              </div>
-              <div className="p-4 rounded-lg border">
-                <p className="text-sm text-muted-foreground">Platform Mode</p>
-                <Badge 
-                  variant="outline"
-                  className={cn(
-                    "mt-1",
-                    localSettings.manual_verification_enabled 
-                      ? "border-amber-500 text-amber-600"
-                      : "border-green-500 text-green-600"
-                  )}
-                >
-                  {localSettings.manual_verification_enabled ? 'Manual' : 'Automated'}
-                </Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Security & Access */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-purple-500/10">
-                <Shield className="h-5 w-5 text-purple-600" />
-              </div>
-              <div>
-                <CardTitle className="text-lg">Security & Access</CardTitle>
-                <CardDescription>
-                  Platform security settings
-                </CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="p-4 rounded-lg border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Super Admin Access</p>
-                  <p className="text-sm text-muted-foreground">PIN-protected access to admin panel</p>
-                </div>
-                <Badge variant="default">Enabled</Badge>
-              </div>
-            </div>
-            <div className="p-4 rounded-lg border">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">Row Level Security</p>
-                  <p className="text-sm text-muted-foreground">Database-level access control</p>
-                </div>
-                <Badge variant="default">Active</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* System Information */}
+        {/* Additional Settings */}
         <Card className="lg:col-span-2">
           <CardHeader>
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-muted">
-                <Database className="h-5 w-5 text-muted-foreground" />
+                <Settings className="h-5 w-5 text-muted-foreground" />
               </div>
               <div>
                 <CardTitle className="text-lg">System Information</CardTitle>
@@ -350,7 +264,7 @@ export function SuperAdminSettings() {
               </div>
               <div className="p-4 rounded-lg border">
                 <p className="text-sm text-muted-foreground">Version</p>
-                <p className="font-semibold">2.0.0</p>
+                <p className="font-semibold">1.0.0</p>
               </div>
               <div className="p-4 rounded-lg border">
                 <p className="text-sm text-muted-foreground">Environment</p>

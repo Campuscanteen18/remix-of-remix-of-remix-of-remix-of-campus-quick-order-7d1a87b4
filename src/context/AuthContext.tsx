@@ -10,7 +10,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   isKiosk: boolean;
-  isSuperAdmin: boolean;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string; role?: UserRole }>;
   signup: (email: string, password: string, fullName: string) => Promise<{ success: boolean; error?: string }>;
   logout: () => Promise<void>;
@@ -22,7 +21,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const mapRole = (role: unknown): UserRole => {
-  if (role === "admin" || role === "kiosk" || role === "student" || role === "super_admin") return role;
+  if (role === "admin" || role === "kiosk" || role === "student") return role;
   return "student";
 };
 
@@ -37,28 +36,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
- // REPLACE THIS FUNCTION INSIDE AuthContext.tsx
-const fetchUserRole = useCallback(async (userId: string): Promise<UserRole> => {
-    console.log("🔍 FETCHING ROLE FOR:", userId);
-
+  const fetchUserRole = useCallback(async (userId: string): Promise<UserRole> => {
     const { data, error } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", userId)
       .maybeSingle();
 
-    // --- DEBUGGING LOGS ---
-    if (error) {
-        console.error("❌ SUPABASE ERROR:", error);
-        console.log("⚠️ Defaulting to 'student' due to error.");
-        return "student";
-    }
-
-    console.log("✅ ROLE FOUND IN DB:", data?.role);
-    // ----------------------
-
+    if (error) return "student";
     return mapRole(data?.role);
-}, []);
+  }, []);
 
   const setFromSession = useCallback(
     async (nextSession: Session | null) => {
@@ -236,7 +223,6 @@ const fetchUserRole = useCallback(async (userId: string): Promise<UserRole> => {
   const isAuthenticated = !!user;
   const isAdmin = user?.role === "admin";
   const isKiosk = user?.role === "kiosk";
-  const isSuperAdmin = user?.role === "super_admin";
 
   const value = useMemo<AuthContextType>(
     () => ({
@@ -246,7 +232,6 @@ const fetchUserRole = useCallback(async (userId: string): Promise<UserRole> => {
       isAuthenticated,
       isAdmin,
       isKiosk,
-      isSuperAdmin,
       login,
       signup,
       logout,
@@ -254,7 +239,7 @@ const fetchUserRole = useCallback(async (userId: string): Promise<UserRole> => {
       changePassword,
       requestPasswordReset,
     }),
-    [user, session, isLoading, isAuthenticated, isAdmin, isKiosk, isSuperAdmin, login, signup, logout, updateUser, changePassword, requestPasswordReset]
+    [user, session, isLoading, isAuthenticated, isAdmin, isKiosk, login, signup, logout, updateUser, changePassword, requestPasswordReset]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

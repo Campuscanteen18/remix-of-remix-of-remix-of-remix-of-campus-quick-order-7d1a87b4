@@ -3,6 +3,7 @@ import {
   Wallet, 
   Check, 
   Clock, 
+  AlertCircle,
   RefreshCw,
   Search,
   Plus,
@@ -46,7 +47,7 @@ import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 
 export function Settlements() {
-  const { filters, campuses, refreshData } = useSuperAdmin();
+  const { filters, canteens, refreshData } = useSuperAdmin();
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -61,7 +62,7 @@ export function Settlements() {
   // Create Settlement Dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [newSettlement, setNewSettlement] = useState({
-    campusId: '',
+    canteenId: '',
     periodStart: '',
     periodEnd: '',
   });
@@ -73,12 +74,16 @@ export function Settlements() {
       .from('settlements')
       .select(`
         *,
-        campus:campuses(name, code, owner_name, upi_id)
+        canteen:canteens(name, owner_name, commission_rate),
+        campus:campuses(name, code)
       `)
       .order('created_at', { ascending: false });
 
     if (filters.campusId) {
       query = query.eq('campus_id', filters.campusId);
+    }
+    if (filters.canteenId) {
+      query = query.eq('canteen_id', filters.canteenId);
     }
     if (statusFilter !== 'all') {
       query = query.eq('status', statusFilter);
@@ -94,7 +99,7 @@ export function Settlements() {
     }
     
     setIsLoading(false);
-  }, [filters.campusId, statusFilter]);
+  }, [filters.campusId, filters.canteenId, statusFilter]);
 
   useEffect(() => {
     fetchSettlements();
@@ -136,7 +141,7 @@ export function Settlements() {
   };
 
   const handleCreateSettlement = async () => {
-    if (!newSettlement.campusId || !newSettlement.periodStart || !newSettlement.periodEnd) {
+    if (!newSettlement.canteenId || !newSettlement.periodStart || !newSettlement.periodEnd) {
       toast.error('Please fill all required fields');
       return;
     }
@@ -144,14 +149,14 @@ export function Settlements() {
     setIsProcessing(true);
 
     try {
-      const selectedCampus = campuses.find(c => c.id === newSettlement.campusId);
-      if (!selectedCampus) throw new Error('Campus not found');
+      const selectedCanteen = canteens.find(c => c.id === newSettlement.canteenId);
+      if (!selectedCanteen) throw new Error('Canteen not found');
 
       // Calculate totals from orders
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .select('total, commission_amount')
-        .eq('campus_id', newSettlement.campusId)
+        .eq('canteen_id', newSettlement.canteenId)
         .eq('payment_status', 'success')
         .gte('created_at', newSettlement.periodStart)
         .lte('created_at', newSettlement.periodEnd);
@@ -165,8 +170,8 @@ export function Settlements() {
       const { error } = await supabase
         .from('settlements')
         .insert({
-          campus_id: newSettlement.campusId,
-          canteen_id: newSettlement.campusId, // Use campus_id as canteen_id for backward compat
+          canteen_id: newSettlement.canteenId,
+          campus_id: selectedCanteen.campus_id,
           period_start: newSettlement.periodStart,
           period_end: newSettlement.periodEnd,
           total_sales: totalSales,
@@ -181,7 +186,7 @@ export function Settlements() {
       toast.success('Settlement created successfully');
       fetchSettlements();
       setShowCreateDialog(false);
-      setNewSettlement({ campusId: '', periodStart: '', periodEnd: '' });
+      setNewSettlement({ canteenId: '', periodStart: '', periodEnd: '' });
     } catch (err) {
       console.error('Error creating settlement:', err);
       toast.error('Failed to create settlement');
@@ -213,8 +218,8 @@ export function Settlements() {
     if (!searchQuery) return true;
     const search = searchQuery.toLowerCase();
     return (
+      settlement.canteen?.name?.toLowerCase().includes(search) ||
       settlement.campus?.name?.toLowerCase().includes(search) ||
-      settlement.campus?.code?.toLowerCase().includes(search) ||
       settlement.payment_reference?.toLowerCase().includes(search)
     );
   });
@@ -234,7 +239,7 @@ export function Settlements() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Settlements</h1>
           <p className="text-muted-foreground">
-            Manage campus payouts and track financial settlements
+            Manage vendor payouts and track financial settlements
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -299,7 +304,7 @@ export function Settlements() {
             <div>
               <CardTitle>Settlement History</CardTitle>
               <CardDescription>
-                View and manage all campus settlements
+                View and manage all vendor settlements
               </CardDescription>
             </div>
             <div className="flex items-center gap-2">
@@ -354,7 +359,7 @@ export function Settlements() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Campus</TableHead>
+                    <TableHead>Canteen</TableHead>
                     <TableHead>Period</TableHead>
                     <TableHead>Total Sales</TableHead>
                     <TableHead>Commission</TableHead>
@@ -368,7 +373,7 @@ export function Settlements() {
                     <TableRow key={settlement.id}>
                       <TableCell>
                         <div>
-                          <p className="font-medium">{settlement.campus?.name || 'Unknown'}</p>
+                          <p className="font-medium">{settlement.canteen?.name || 'Unknown'}</p>
                           <p className="text-xs text-muted-foreground">
                             {settlement.campus?.code}
                           </p>
@@ -423,7 +428,7 @@ export function Settlements() {
             <DialogDescription>
               Enter the bank transaction reference to confirm payment of{' '}
               <strong>{formatCurrency(selectedSettlement?.net_payable || 0)}</strong> to{' '}
-              <strong>{selectedSettlement?.campus?.name}</strong>.
+              <strong>{selectedSettlement?.canteen?.name}</strong>.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -463,23 +468,23 @@ export function Settlements() {
           <DialogHeader>
             <DialogTitle>Create New Settlement</DialogTitle>
             <DialogDescription>
-              Generate a settlement for a specific campus and time period.
+              Generate a settlement for a specific canteen and time period.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="campus">Select Campus *</Label>
+              <Label htmlFor="canteen">Select Canteen *</Label>
               <Select
-                value={newSettlement.campusId}
-                onValueChange={(value) => setNewSettlement(prev => ({ ...prev, campusId: value }))}
+                value={newSettlement.canteenId}
+                onValueChange={(value) => setNewSettlement(prev => ({ ...prev, canteenId: value }))}
               >
-                <SelectTrigger id="campus">
-                  <SelectValue placeholder="Choose a campus" />
+                <SelectTrigger>
+                  <SelectValue placeholder="Choose a canteen" />
                 </SelectTrigger>
                 <SelectContent>
-                  {campuses.map((campus) => (
-                    <SelectItem key={campus.id} value={campus.id}>
-                      {campus.name} ({campus.code})
+                  {canteens.map((canteen) => (
+                    <SelectItem key={canteen.id} value={canteen.id}>
+                      {canteen.name} ({canteen.campus?.code})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -511,7 +516,7 @@ export function Settlements() {
               Cancel
             </Button>
             <Button onClick={handleCreateSettlement} disabled={isProcessing}>
-              {isProcessing ? 'Creating...' : 'Generate Settlement'}
+              {isProcessing ? 'Creating...' : 'Create Settlement'}
             </Button>
           </DialogFooter>
         </DialogContent>

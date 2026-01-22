@@ -1,29 +1,30 @@
 // Super Admin Dashboard Types
 
-export interface Campus {
+export interface Canteen {
   id: string;
+  campus_id: string;
   name: string;
-  code: string;
-  address: string | null;
-  is_active: boolean;
-  logo_url: string | null;
   owner_name: string | null;
   owner_email: string | null;
   owner_phone: string | null;
-  upi_id: string | null;
   bank_account_name: string | null;
   bank_account_number: string | null;
   bank_ifsc: string | null;
+  upi_id: string | null;
   commission_rate: number;
-  settings: Record<string, unknown>;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
+  campus?: {
+    name: string;
+    code: string;
+  };
 }
 
 export interface Settlement {
   id: string;
+  canteen_id: string;
   campus_id: string;
-  canteen_id: string; // Keep for backward compat, will be ignored
   period_start: string;
   period_end: string;
   total_sales: number;
@@ -37,11 +38,10 @@ export interface Settlement {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  canteen?: Canteen;
   campus?: {
     name: string;
     code: string;
-    owner_name?: string | null;
-    upi_id?: string | null;
   };
 }
 
@@ -60,6 +60,7 @@ export interface PendingOrder {
   customer_name: string | null;
   customer_email: string | null;
   campus_id: string;
+  canteen_id: string | null;
   total: number;
   utr_number: string | null;
   verification_status: 'pending' | 'approved' | 'rejected';
@@ -68,6 +69,9 @@ export interface PendingOrder {
   campus?: {
     name: string;
     code: string;
+  };
+  canteen?: {
+    name: string;
   };
 }
 
@@ -82,4 +86,5 @@ export interface DashboardStats {
 
 export interface GlobalFilters {
   campusId: string | null;
+  canteenId: string | null;
 }

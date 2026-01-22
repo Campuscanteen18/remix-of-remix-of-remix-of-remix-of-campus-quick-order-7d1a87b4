@@ -1,284 +1,214 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { ArrowLeft, Clock, ShoppingBag, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ArrowLeft, 
-  Clock, 
-  CheckCircle2, 
-  XCircle, 
-  ChevronRight,
-  ShoppingBag,
-  RefreshCw,
-  AlertCircle
-} from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Separator } from '@/components/ui/separator';
 import { QRCodeSVG } from 'qrcode.react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/context/AuthContext';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
-import { toast } from 'sonner';
-
-// --- Types ---
-interface OrderItem {
-  name: string;
-  quantity: number;
-  price: number;
-}
-
-interface Order {
-  id: string;
-  order_number: string;
-  total: number;
-  status: string;
-  payment_status: string;
-  verification_status: string;
-  rejection_reason?: string | null; 
-  created_at: string;
-  items: OrderItem[];
-  campus: { name: string };
-  canteen: { name: string };
-}
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import { OrderSkeletonList } from '@/components/skeletons/OrderSkeleton';
+import { ErrorState } from '@/components/ErrorState';
+import { EmptyState } from '@/components/EmptyState';
+import { useOrders } from '@/hooks/useOrders';
 
 export default function MyOrders() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const { activeOrders, isLoading, error, refetch } = useOrders();
   const [isRefetching, setIsRefetching] = useState(false);
 
-  // --- Fetch Logic ---
-  const fetchOrders = async () => {
-    try {
-      if (!user) return;
-      
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          campus:campuses(name),
-          canteen:canteens(name),
-          order_items(name, quantity, price)
-        `)
-        .eq('customer_email', user.email)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-
-      // Safe mapping with strict types
-      const formattedOrders: Order[] = (data || []).map((order: any) => ({
-        id: order.id,
-        order_number: order.order_number,
-        total: order.total || order.amount, // Fallback for amount column
-        status: order.status,
-        payment_status: order.payment_status,
-        verification_status: order.verification_status,
-        rejection_reason: order.rejection_reason, 
-        created_at: order.created_at,
-        campus: order.campus,
-        canteen: order.canteen,
-        items: order.order_items || order.items || [] // Fallback for items
-      }));
-
-      setOrders(formattedOrders);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-      toast.error('Failed to load orders');
-    } finally {
-      setIsLoading(false);
-      setIsRefetching(false);
-    }
-  };
-
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefetching(true);
-    fetchOrders();
+    await refetch();
+    setIsRefetching(false);
   };
 
-  // --- Real-time Subscription ---
-  useEffect(() => {
-    fetchOrders();
-    const channel = supabase
-      .channel('my-orders-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchOrders();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user]);
-
-  // --- Helper: Check Expiry (5 Hours) ---
-  const isOrderExpired = (createdAtString: string) => {
-    const createdAt = new Date(createdAtString);
+  // Check if order is expired (older than 5 hours)
+  const isOrderExpired = (createdAt: Date) => {
     const now = new Date();
     const fiveHoursMs = 5 * 60 * 60 * 1000;
     return now.getTime() - createdAt.getTime() > fiveHoursMs;
   };
 
-  // --- UI Helpers ---
-  const getStatusConfig = (status: string, verification: string) => {
-    if (status === 'collected') return { label: 'Collected', className: 'bg-gray-100 text-gray-700 border-gray-200' };
-    if (status === 'cancelled' || verification === 'rejected') return { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
-    if (status === 'confirmed' || status === 'approved' || verification === 'approved') return { label: 'Approved', className: 'bg-green-100 text-green-700 border-green-200' };
-    return { label: 'Pending', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-IN', { 
+      hour: '2-digit', 
+      minute: '2-digit',
+      hour12: true 
+    });
+  };
+
+  const getStatusBadge = (status: string) => {
+    const statusConfig = {
+      pending: { label: 'Pending', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' },
+      confirmed: { label: 'Confirmed', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
+      preparing: { label: 'Preparing', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+      ready: { label: 'Ready', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' },
+      collected: { label: 'Collected', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' },
+      cancelled: { label: 'Cancelled', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+    };
+    return statusConfig[status as keyof typeof statusConfig] || statusConfig.pending;
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-20">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
-        <div className="flex items-center justify-between max-w-lg mx-auto">
+      <header className="sticky top-0 z-10 bg-card border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={() => navigate('/menu')} className="shrink-0">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              onClick={() => navigate('/menu')}
+              className="shrink-0"
+            >
               <ArrowLeft size={20} />
             </Button>
             <div>
               <h1 className="text-lg font-bold">My Orders</h1>
-              <p className="text-xs text-muted-foreground">Track your food</p>
+              <p className="text-xs text-muted-foreground">Track your active orders</p>
             </div>
           </div>
-          <Button variant="ghost" size="icon" onClick={handleRefresh} disabled={isRefetching}>
-            <RefreshCw size={18} className={cn(isRefetching && "animate-spin")} />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleRefresh}
+            disabled={isRefetching}
+            className="shrink-0"
+          >
+            <RefreshCw size={18} className={isRefetching ? 'animate-spin' : ''} />
           </Button>
         </div>
       </header>
 
       {/* Orders List */}
-      <main className="p-4 space-y-4 max-w-lg mx-auto">
-        {isLoading ? (
-          [1, 2].map(i => <Skeleton key={i} className="h-48 w-full rounded-2xl" />)
-        ) : orders.length === 0 ? (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <ShoppingBag className="h-8 w-8 text-gray-400" />
-            </div>
-            <h3 className="font-medium text-gray-900">No active orders</h3>
-            <p className="text-gray-500 text-sm mt-1">Hungry? Place an order now!</p>
-            <Button className="mt-4" onClick={() => navigate('/menu')}>Browse Menu</Button>
-          </div>
-        ) : (
-          orders.map((order) => {
-            const statusConfig = getStatusConfig(order.status, order.verification_status);
-            const isExpired = isOrderExpired(order.created_at);
-            
-            // LOGIC FLAGS
-            const isRejected = order.status === 'cancelled' || order.verification_status === 'rejected';
-            const isCollected = order.status === 'collected';
-            // Order is 'ready' if it is approved/confirmed AND not collected yet
-            const isReady = (order.status === 'confirmed' || order.status === 'approved' || order.verification_status === 'approved') && !isCollected;
+      <main className="p-4 space-y-4 pb-8">
+        {/* Loading State */}
+        {isLoading && <OrderSkeletonList count={2} />}
 
-            return (
-              <Card key={order.id} className="border-none shadow-sm overflow-hidden">
-                <CardContent className="p-0">
-                  <div className="p-4 bg-white">
-                    {/* Card Header */}
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-lg">#{order.order_number}</span>
-                          <Badge variant="outline" className={cn("capitalize border", statusConfig.className)}>
-                            {statusConfig.label}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
-                          <Clock size={12} />
-                          {format(new Date(order.created_at), 'h:mm a')} • {order.canteen?.name || 'Canteen'}
-                        </p>
-                      </div>
-                      <span className="font-bold text-lg text-primary">₹{order.total}</span>
-                    </div>
-
-                    <Separator className="my-3" />
-
-                    {/* Order Items */}
-                    <div className="space-y-1 mb-4">
-                      {order.items.map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-sm">
-                          <span className="text-gray-600">{item.quantity}x {item.name}</span>
-                          <span className="font-medium">₹{item.price * item.quantity}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* --- DYNAMIC FOOTER LOGIC --- */}
-                    
-                    {/* 1. REJECTED STATE */}
-                    {isRejected ? (
-                      <div className="bg-red-50 p-3 rounded-xl border border-red-100">
-                        <div className="flex items-start gap-2">
-                          <XCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
-                          <div className="w-full">
-                            <p className="font-semibold text-sm text-red-700">Payment Rejected</p>
-                            <p className="text-xs text-red-600 mt-0.5">
-                              Reason: <span className="font-medium">{order.rejection_reason || "Verification failed"}</span>
-                            </p>
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="w-full mt-3 bg-white border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 h-8 text-xs"
-                              onClick={() => navigate(`/payment?orderId=${order.id}`)}
-                            >
-                              Fix & Pay Again
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : isCollected ? (
-                      // 2. COLLECTED STATE (NEW)
-                      <div className="bg-gray-100 p-3 rounded-xl border border-gray-200 flex items-center justify-between">
-                         <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-5 w-5 text-gray-500" />
-                            <div>
-                               <p className="font-semibold text-sm text-gray-700">Order Collected</p>
-                               <p className="text-xs text-gray-500">Enjoy your meal!</p>
-                            </div>
-                         </div>
-                      </div>
-                    ) : isReady ? (
-                      // 3. READY STATE (Confirmed/Approved)
-                      isExpired ? (
-                        <div className="bg-gray-100 p-3 rounded-xl border border-gray-200 text-center">
-                          <p className="text-sm font-medium text-gray-500 flex items-center justify-center gap-1">
-                            <AlertCircle size={16} /> QR Code Expired
-                          </p>
-                          <p className="text-xs text-gray-400 mt-1">Order placed &gt;5 hours ago</p>
-                        </div>
-                      ) : (
-                        <div 
-                          className="bg-green-50 p-3 rounded-xl border border-green-100 flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
-                          onClick={() => navigate(`/payment?orderId=${order.id}`)}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="bg-white p-1.5 rounded-lg border border-green-100">
-                              <QRCodeSVG value={order.id} size={32} />
-                            </div>
-                            <div>
-                              <p className="font-semibold text-sm text-green-700">Order Ready!</p>
-                              <p className="text-xs text-green-600">Tap to view full QR Code</p>
-                            </div>
-                          </div>
-                          <ChevronRight className="h-5 w-5 text-green-400" />
-                        </div>
-                      )
-                    ) : (
-                      // 4. PENDING STATE (Default Fallback)
-                      <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-center">
-                        <p className="text-sm font-medium text-yellow-700 flex items-center justify-center gap-2">
-                          <Clock size={16} /> Awaiting Verification
-                        </p>
-                        <p className="text-xs text-yellow-600 mt-1">Admin is reviewing your payment</p>
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
+        {/* Error State */}
+        {error && !isLoading && (
+          <ErrorState
+            message={error}
+            onRetry={refetch}
+          />
         )}
+
+        {/* Empty State */}
+        {!isLoading && !error && activeOrders.length === 0 && (
+          <EmptyState
+            icon={ShoppingBag}
+            title="No Active Orders"
+            description="Your orders will appear here once you place them"
+            action={{
+              label: "Browse Menu",
+              onClick: () => navigate('/menu'),
+            }}
+          />
+        )}
+
+        {/* Orders */}
+        {!isLoading && !error && activeOrders.map((order) => {
+          const status = getStatusBadge(order.status);
+          
+          return (
+            <div 
+              key={order.id} 
+              className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm"
+            >
+              {/* Order Header */}
+              <div className="p-4 pb-3">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="font-bold text-base">{order.qrCode || order.id}</p>
+                    <p className="text-xs text-muted-foreground flex items-center gap-1">
+                      <Clock size={12} />
+                      Placed at {formatTime(order.createdAt)}
+                    </p>
+                  </div>
+                  <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full ${status.color}`}>
+                    <span className="text-xs font-medium">{status.label}</span>
+                  </div>
+                </div>
+
+                <Separator className="my-3" />
+
+                {/* Order Items */}
+                <div className="space-y-2">
+                  {order.items.map((item, idx) => (
+                    <div key={idx} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {item.quantity}x {item.name}
+                      </span>
+                      <span>₹{item.price * item.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <Separator className="my-3" />
+
+                <div className="flex justify-between font-bold">
+                  <span>Total</span>
+                  <span className="text-primary">₹{order.total}</span>
+                </div>
+              </div>
+
+              {/* QR Code Section - Only show for paid orders */}
+              {order.paymentStatus === 'completed' || order.paymentStatus === 'paid' ? (
+                isOrderExpired(order.createdAt) ? (
+                  // Expired QR Code
+                  <div className="bg-red-50 dark:bg-red-900/20 p-4 border-t border-red-200 dark:border-red-800">
+                    <p className="text-sm text-center text-red-700 dark:text-red-400 font-medium">
+                      ❌ QR Code Expired
+                    </p>
+                    <p className="text-xs text-center text-red-600 dark:text-red-500 mt-1">
+                      This token has expired after 5 hours. Please contact the canteen staff.
+                    </p>
+                    <div className="flex justify-center mt-3">
+                      <div className="bg-white/50 dark:bg-gray-800/50 p-3 rounded-xl opacity-50 grayscale">
+                        <QRCodeSVG 
+                          value={order.qrCode}
+                          size={100}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-center text-muted-foreground mt-2 font-mono line-through">
+                      {order.qrCode || order.id}
+                    </p>
+                  </div>
+                ) : (
+                  // Valid QR Code
+                  <div className="bg-muted/50 p-4 border-t border-border">
+                    <p className="text-xs text-center text-muted-foreground mb-3">
+                      Show this QR code at the counter for pickup
+                    </p>
+                    <div className="flex justify-center">
+                      <div className="bg-white p-3 rounded-xl shadow-sm">
+                        <QRCodeSVG 
+                          value={order.qrCode}
+                          size={140}
+                          level="M"
+                          includeMargin={false}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-xs text-center text-muted-foreground mt-3 font-mono">
+                      {order.qrCode || order.id}
+                    </p>
+                  </div>
+                )
+              ) : (
+                <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 border-t border-yellow-200 dark:border-yellow-800">
+                  <p className="text-sm text-center text-yellow-700 dark:text-yellow-400 font-medium">
+                    ⏳ Awaiting Payment Confirmation
+                  </p>
+                  <p className="text-xs text-center text-yellow-600 dark:text-yellow-500 mt-1">
+                    QR code will appear after payment is verified
+                  </p>
+                </div>
+              )}
+            </div>
+          );
+        })}
       </main>
     </div>
   );

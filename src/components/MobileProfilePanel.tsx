@@ -122,7 +122,6 @@ export function MobileProfilePanel({
   };
 
   // Get display status based on order and payment status
-  // Simplified token system status display
   const getStatusDisplay = (order: Order) => {
     if (order.status === 'pending' && order.payment_status === 'paid') {
       return { label: 'Verifying...', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
@@ -130,11 +129,15 @@ export function MobileProfilePanel({
     
     switch (order.status) {
       case 'confirmed':
-        return { label: 'Approved', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' };
-      case 'collected':
-        return { label: 'Collected', color: 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400' };
+        return { label: 'Confirmed', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' };
+      case 'preparing':
+        return { label: 'Preparing', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' };
+      case 'ready':
+        return { label: 'Ready', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' };
+      case 'delivered':
+        return { label: 'Delivered', color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' };
       case 'cancelled':
-        return { label: 'Failed', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' };
+        return { label: 'Cancelled', color: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' };
       case 'pending':
       default:
         return { label: 'Pending', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400' };

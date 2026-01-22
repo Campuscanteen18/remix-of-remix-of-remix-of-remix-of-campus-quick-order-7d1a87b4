@@ -9,10 +9,10 @@ import { OrderTimeline } from '@/components/OrderTimeline';
 import { PageTransition } from '@/components/PageTransition';
 import { QRCodeSVG } from 'qrcode.react';
 
-// Mock order data - will be replaced with real data (using simplified token system)
+// Mock order data - will be replaced with real data
 const mockOrder = {
   id: 'ORD-001',
-  status: 'confirmed' as const, // Token system: pending, confirmed, collected, cancelled
+  status: 'preparing' as const,
   items: [
     { name: 'Chicken Biryani', quantity: 2, price: 120 },
     { name: 'Masala Chai', quantity: 3, price: 15 },
@@ -32,31 +32,21 @@ export default function OrderDetails() {
 
   const order = mockOrder; // TODO: Fetch real order by ID
 
-  // Simplified token system status colors
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
         return 'bg-yellow-500/10 text-yellow-600';
       case 'confirmed':
+        return 'bg-blue-500/10 text-blue-600';
+      case 'preparing':
+        return 'bg-orange-500/10 text-orange-600';
+      case 'ready':
         return 'bg-green-500/10 text-green-600';
       case 'collected':
         return 'bg-muted text-muted-foreground';
-      case 'cancelled':
-        return 'bg-destructive/10 text-destructive';
       default:
         return 'bg-muted text-muted-foreground';
     }
-  };
-
-  // Get display label for status
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      pending: 'Pending',
-      confirmed: 'Approved',
-      collected: 'Collected',
-      cancelled: 'Failed',
-    };
-    return labels[status] || status;
   };
 
   return (
@@ -86,7 +76,7 @@ export default function OrderDetails() {
                   <p className="font-bold text-lg">{order.id}</p>
                 </div>
                 <Badge className={getStatusColor(order.status)}>
-                  {getStatusLabel(order.status)}
+                  {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                 </Badge>
               </div>
               <CardContent className="p-4">

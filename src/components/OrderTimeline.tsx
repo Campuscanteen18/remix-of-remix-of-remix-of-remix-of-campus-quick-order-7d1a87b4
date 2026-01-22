@@ -1,54 +1,29 @@
-import { Check, Clock, Package, XCircle } from 'lucide-react';
+import { Check, Clock, ChefHat, Package, HandHeart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { motion } from 'framer-motion';
-import { OrderStatus } from '@/types/canteen';
 
 interface OrderTimelineProps {
-  status: OrderStatus;
+  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected';
 }
 
-// Simplified token system - only 3 steps (cancelled shows as failed state)
 const steps = [
-  { id: 'pending', label: 'Pending', icon: Clock },
-  { id: 'confirmed', label: 'Approved', icon: Check },
-  { id: 'collected', label: 'Collected', icon: Package },
+  { id: 'pending', label: 'Order Placed', icon: Clock },
+  { id: 'confirmed', label: 'Confirmed', icon: Check },
+  { id: 'preparing', label: 'Preparing', icon: ChefHat },
+  { id: 'ready', label: 'Ready', icon: Package },
+  { id: 'collected', label: 'Collected', icon: HandHeart },
 ];
 
 const statusIndex: Record<string, number> = {
   pending: 0,
   confirmed: 1,
-  collected: 2,
-  cancelled: -1, // Special state
+  preparing: 2,
+  ready: 3,
+  collected: 4,
 };
 
 export function OrderTimeline({ status }: OrderTimelineProps) {
-  const isCancelled = status === 'cancelled';
-  const currentIndex = isCancelled ? -1 : (statusIndex[status] ?? 0);
-
-  // For cancelled orders, show a different UI
-  if (isCancelled) {
-    return (
-      <div className="py-4">
-        <div className="flex items-center justify-center">
-          <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="flex flex-col items-center"
-          >
-            <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center">
-              <XCircle className="w-6 h-6 text-destructive" />
-            </div>
-            <span className="text-sm mt-2 font-medium text-destructive">
-              Payment Failed
-            </span>
-            <span className="text-xs text-muted-foreground mt-1">
-              Order cancelled
-            </span>
-          </motion.div>
-        </div>
-      </div>
-    );
-  }
+  const currentIndex = statusIndex[status] ?? 0;
 
   return (
     <div className="py-4">

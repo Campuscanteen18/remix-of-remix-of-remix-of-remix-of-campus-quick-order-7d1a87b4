@@ -330,8 +330,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // Simplified token system - only 4 statuses
-  const handleOrderStatusChange = async (id: string, status: 'pending' | 'confirmed' | 'collected' | 'cancelled') => {
+  const handleOrderStatusChange = async (id: string, status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled') => {
     try {
       await updateOrderStatus.mutateAsync({ id, status });
       toast.success("Order status updated");
@@ -1272,12 +1271,14 @@ export default function AdminDashboard() {
                                           ? "bg-green-500/10 text-green-600"
                                           : order.status === "cancelled"
                                             ? "bg-destructive/10 text-destructive"
-                                            : order.status === "confirmed"
-                                              ? "bg-blue-500/10 text-blue-600"
-                                              : "bg-amber-500/10 text-amber-600"
+                                            : order.status === "ready"
+                                              ? "bg-secondary/10 text-secondary"
+                                              : order.status === "confirmed"
+                                                ? "bg-blue-500/10 text-blue-600"
+                                                : "bg-amber-500/10 text-amber-600"
                                       }`}
                                     >
-                                      {order.status === 'confirmed' ? 'Approved' : order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                                      {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-2 mt-1.5">
@@ -1319,8 +1320,8 @@ export default function AdminDashboard() {
                                 </div>
                               )}
 
-                              {/* Mark Token Used Button - for confirmed orders that haven't been scanned */}
-                              {order.status === 'confirmed' && !order.is_used && (
+                              {/* Mark Token Used Button - only for READY orders that haven't been scanned at kiosk */}
+                              {order.status === 'ready' && !order.is_used && (
                                 <div className="mt-3 pt-3 border-t border-border/50">
                                   <Button
                                     size="sm"
