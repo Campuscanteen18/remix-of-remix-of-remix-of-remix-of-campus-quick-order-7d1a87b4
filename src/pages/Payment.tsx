@@ -97,7 +97,6 @@ export default function Payment() {
   const checkExistingOrderStatus = async () => {
     if (!activeOrderId) return;
 
-    // FIX: Cast the response to 'any' to silence TypeScript errors
     const { data } = (await supabase
       .from("orders")
       .select("status, verification_status, amount")
@@ -107,10 +106,16 @@ export default function Payment() {
     if (data) {
       if (data.amount) setDisplayAmount(data.amount.toString());
 
-      if (data.verification_status === "approved") setStage("approved");
-      else if (data.verification_status === "pending") setStage("pending");
-      else if (data.verification_status === "rejected") setStage("rejected");
-      else setStage("pay");
+      if (data.verification_status === "approved") {
+        setStage("approved");
+      } else if (data.verification_status === "pending") {
+        setStage("pending");
+      } else if (data.verification_status === "rejected") {
+        // --- FIX 1: If rejected, show 'pay' screen so user can retry ---
+        setStage("pay"); 
+      } else {
+        setStage("pay");
+      }
     }
   };
 
@@ -357,6 +362,16 @@ export default function Payment() {
                       <ChevronDown size={16} />
                     </div>
                   </div>
+
+                  {/* --- FIX 2: Added 'Already Paid' link for easy access to upload screen --- */}
+                  <div className="text-center pt-2">
+                    <button
+                      onClick={() => setStage("verify")}
+                      className="text-sm font-medium text-primary hover:underline hover:text-primary/80 transition-colors py-2 px-4 rounded-lg hover:bg-primary/5"
+                    >
+                      Already paid? Click here to submit details
+                    </button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -417,7 +432,7 @@ export default function Payment() {
             >
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
                 <div className="p-4 border-b border-border/50 flex items-center gap-3">
-                  <button onClick={() => setStage("manual_help")}>
+                  <button onClick={() => setStage("pay")}>
                     <ArrowLeft size={18} />
                   </button>
                   <h2 className="font-semibold">Confirm Payment</h2>
