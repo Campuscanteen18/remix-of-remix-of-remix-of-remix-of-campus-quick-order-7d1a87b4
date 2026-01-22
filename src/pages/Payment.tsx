@@ -30,6 +30,7 @@ import { QRCodeSVG } from "qrcode.react";
 import { AppLauncher } from "@capacitor/app-launcher";
 
 type PaymentStage = "loading" | "pay" | "manual_help" | "verify" | "submitting" | "pending" | "approved" | "rejected";
+type PaymentMode = "create" | "retry" | "status";
 
 export default function Payment() {
   const navigate = useNavigate();
@@ -53,6 +54,9 @@ export default function Payment() {
   const [isCompressing, setIsCompressing] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [displayAmount, setDisplayAmount] = useState(amountParam || "0");
+  const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+  const [orderNumber, setOrderNumber] = useState<string | null>(null);
+  const [orderData, setOrderData] = useState<any>(null);
 
   const [activeOrderId, setActiveOrderId] = useState<string | null>(orderIdParam);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,29 +92,51 @@ export default function Payment() {
       setStage("pay");
       setDisplayAmount(amountParam);
     } else if (activeOrderId) {
-      checkExistingOrderStatus();
-      const interval = setInterval(checkExistingOrderStatus, 3000);
+      // When coming from "Fix & Pay Again" or viewing an existing order
+      checkExistingOrderStatus(true);
+      const interval = setInterval(() => checkExistingOrderStatus(false), 3000);
       return () => clearInterval(interval);
     }
   }, [mode, activeOrderId]);
 
-  const checkExistingOrderStatus = async () => {
+  const checkExistingOrderStatus = async (isInitialLoad: boolean = false) => {
     if (!activeOrderId) return;
 
-    // FIX: Cast the response to 'any' to silence TypeScript errors
     const { data } = (await supabase
       .from("orders")
-      .select("status, verification_status, amount")
+      .select("id, order_number, status, verification_status, rejection_reason, total, amount, order_items(id, name, price, quantity)")
       .eq("id", activeOrderId)
       .single()) as any;
 
     if (data) {
-      if (data.amount) setDisplayAmount(data.amount.toString());
+      const amount = data.total || data.amount;
+      if (amount) setDisplayAmount(amount.toString());
+      setOrderNumber(data.order_number);
+      setOrderData(data);
 
-      if (data.verification_status === "approved") setStage("approved");
-      else if (data.verification_status === "pending") setStage("pending");
-      else if (data.verification_status === "rejected") setStage("rejected");
-      else setStage("pay");
+      // For approved orders, show the approved state with QR
+      if (data.verification_status === "approved" || data.status === "confirmed") {
+        setStage("approved");
+      }
+      // For pending verification, show pending state
+      else if (data.verification_status === "pending") {
+        setStage("pending");
+      }
+      // For rejected orders: On initial load, show payment page so user can retry
+      // On subsequent polls, keep checking
+      else if (data.verification_status === "rejected" || data.status === "cancelled") {
+        setRejectionReason(data.rejection_reason);
+        if (isInitialLoad) {
+          // Show payment page with option to retry
+          setStage("pay");
+        } else {
+          // During polling, keep the current stage unless it changes
+        }
+      }
+      // Default: show payment page
+      else {
+        setStage("pay");
+      }
     }
   };
 
@@ -316,6 +342,16 @@ export default function Payment() {
               className="w-full max-w-md"
             >
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
+                {/* Show order number if retrying */}
+                {orderNumber && (
+                  <div className="px-6 pt-4 pb-0">
+                    <div className="bg-muted/50 rounded-xl p-3 flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Order</span>
+                      <span className="font-mono font-bold">#{orderNumber}</span>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="bg-gradient-to-r from-green-600 to-emerald-700 p-8 text-white text-center">
                   <p className="text-sm opacity-90 font-medium tracking-wide uppercase">Total Payable</p>
                   <p className="text-5xl font-extrabold mt-2 tracking-tight">₹{parseFloat(displayAmount).toFixed(0)}</p>
@@ -356,6 +392,16 @@ export default function Payment() {
                     <div className="w-8 h-8 rounded-full bg-secondary flex items-center justify-center group-hover:bg-primary/10 group-hover:text-primary transition-colors">
                       <ChevronDown size={16} />
                     </div>
+                  </div>
+
+                  {/* Already Paid? Link */}
+                  <div className="text-center pt-2">
+                    <button
+                      onClick={() => setStage("verify")}
+                      className="text-sm text-primary font-medium underline underline-offset-2 hover:text-primary/80 transition-colors"
+                    >
+                      Already paid? Submit payment details
+                    </button>
                   </div>
                 </div>
               </div>
@@ -481,8 +527,13 @@ export default function Payment() {
                     disabled={!utrNumber || utrNumber.length < 10 || !screenshot || isSubmitting}
                     className="w-full h-14 font-bold rounded-xl text-lg shadow-lg shadow-primary/20"
                   >
-                    {" "}
-                    {isSubmitting ? <Loader2 className="animate-spin" /> : "Create Order & Verify"}{" "}
+                    {isSubmitting ? (
+                      <Loader2 className="animate-spin" />
+                    ) : mode === "create" ? (
+                      "Create Order & Verify"
+                    ) : (
+                      "Submit for Verification"
+                    )}
                   </Button>
                 </div>
               </div>
@@ -490,63 +541,153 @@ export default function Payment() {
           )}
 
           {stage === "pending" && (
-            <motion.div key="pending" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-md">
-              {" "}
+            <motion.div key="pending" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md">
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-8 text-center">
-                {" "}
-                <div className="w-20 h-20 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
-                  {" "}
-                  <Clock className="w-10 h-10 text-amber-500" />{" "}
-                </div>{" "}
-                <h2 className="text-2xl font-bold mb-2">Verification Pending</h2>{" "}
-                <p className="text-muted-foreground mb-6">Waiting for admin approval...</p>{" "}
-                <div className="p-4 bg-muted/50 rounded-xl mb-6 flex items-center justify-center gap-2">
-                  {" "}
-                  <Loader2 className="animate-spin text-amber-600" size={16} />{" "}
-                  <span className="text-sm font-medium text-amber-600">Please wait 2-5 mins</span>{" "}
-                </div>{" "}
-              </div>{" "}
+                {/* Order number if available */}
+                {orderNumber && (
+                  <div className="mb-4 bg-muted/50 rounded-xl p-3 inline-block">
+                    <span className="text-sm text-muted-foreground">Order: </span>
+                    <span className="font-mono font-bold">#{orderNumber}</span>
+                  </div>
+                )}
+                
+                <div className="w-24 h-24 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-6">
+                  <motion.div
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                  >
+                    <Clock className="w-12 h-12 text-amber-500" />
+                  </motion.div>
+                </div>
+                
+                <h2 className="text-2xl font-bold mb-2">Verification Pending</h2>
+                <p className="text-muted-foreground mb-6">Waiting for admin approval...</p>
+                
+                <div className="p-4 bg-amber-500/10 rounded-xl mb-6 border border-amber-500/20">
+                  <div className="flex items-center justify-center gap-2">
+                    <Loader2 className="animate-spin text-amber-600" size={18} />
+                    <span className="text-sm font-medium text-amber-700">Please wait 2-5 minutes</span>
+                  </div>
+                  <p className="text-xs text-amber-600 mt-2">We'll notify you once your payment is verified</p>
+                </div>
+                
+                <Button variant="outline" onClick={() => navigate("/my-orders")} className="w-full h-12">
+                  Go to My Orders
+                </Button>
+              </div>
             </motion.div>
           )}
+          
           {stage === "rejected" && (
-            <motion.div key="rejected" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-md">
-              {" "}
+            <motion.div key="rejected" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md">
               <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-8 text-center">
-                {" "}
-                <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
-                  {" "}
-                  <XCircle className="w-10 h-10 text-red-500" />{" "}
-                </div>{" "}
-                <h2 className="text-2xl font-bold text-red-600 mb-2">Payment Rejected</h2>{" "}
-                <p className="text-muted-foreground mb-6">Admin rejected the UTR provided.</p>{" "}
-                <Button onClick={() => setStage("verify")} className="w-full h-12 font-bold mb-3">
+                {/* Order number if available */}
+                {orderNumber && (
+                  <div className="mb-4 bg-muted/50 rounded-xl p-3 inline-block">
+                    <span className="text-sm text-muted-foreground">Order: </span>
+                    <span className="font-mono font-bold">#{orderNumber}</span>
+                  </div>
+                )}
+                
+                <div className="w-24 h-24 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6">
+                  <XCircle className="w-12 h-12 text-red-500" />
+                </div>
+                
+                <h2 className="text-2xl font-bold text-red-600 mb-2">Verification Failed</h2>
+                
+                {/* Rejection reason */}
+                <div className="bg-red-50 dark:bg-red-500/10 rounded-xl p-4 mb-6 border border-red-200 dark:border-red-500/20">
+                  <p className="text-sm text-red-700 dark:text-red-400">
+                    <span className="font-semibold">Reason: </span>
+                    {rejectionReason || "Payment verification failed. Please try again with correct details."}
+                  </p>
+                </div>
+                
+                <Button 
+                  onClick={() => {
+                    setUtrNumber("");
+                    setScreenshot(null);
+                    setScreenshotPreview(null);
+                    setStage("pay");
+                  }} 
+                  className="w-full h-12 font-bold mb-3 bg-primary hover:bg-primary/90"
+                >
                   Try Again
-                </Button>{" "}
-                <Button variant="ghost" onClick={() => navigate("/menu")} className="w-full">
-                  Cancel Order
-                </Button>{" "}
-              </div>{" "}
+                </Button>
+                
+                <Button variant="ghost" onClick={() => navigate("/my-orders")} className="w-full">
+                  Go Back
+                </Button>
+              </div>
             </motion.div>
           )}
+          
           {stage === "approved" && (
-            <motion.div key="approved" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="w-full max-w-md">
-              {" "}
-              <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-8 text-center">
-                {" "}
-                <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
-                  {" "}
-                  <CheckCircle2 className="w-10 h-10 text-green-500" />{" "}
-                </div>{" "}
-                <h2 className="text-2xl font-bold text-green-600 mb-2">Order Confirmed!</h2>{" "}
-                <p className="text-muted-foreground mb-6">Show QR at counter.</p>{" "}
-                <div className="bg-white p-6 rounded-2xl inline-block shadow-sm border mb-6">
-                  {" "}
-                  <QRCodeSVG value={activeOrderId || ""} size={180} />{" "}
-                </div>{" "}
-                <Button className="w-full" onClick={() => navigate("/my-orders")}>
-                  View My Orders
-                </Button>{" "}
-              </div>{" "}
+            <motion.div key="approved" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-md">
+              <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
+                <div className="p-8 text-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                    className="w-24 h-24 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-6"
+                  >
+                    <CheckCircle2 className="w-12 h-12 text-green-500" />
+                  </motion.div>
+                  
+                  <h2 className="text-2xl font-bold text-green-600 mb-2">Verification Approved!</h2>
+                  <p className="text-muted-foreground mb-2">Your payment has been verified</p>
+                  
+                  {orderNumber && (
+                    <p className="text-sm font-medium mb-6">
+                      Order: <span className="font-mono font-bold">#{orderNumber}</span>
+                    </p>
+                  )}
+                </div>
+                
+                {/* QR Code Section */}
+                <div className="bg-gradient-to-b from-muted/30 to-muted/50 p-6 text-center border-t border-border/50">
+                  <p className="text-sm text-muted-foreground mb-4">Show this QR code at the counter</p>
+                  <motion.div
+                    initial={{ scale: 0.8, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={{ delay: 0.3, type: "spring" }}
+                    className="bg-white p-6 rounded-2xl inline-block shadow-lg border"
+                  >
+                    <QRCodeSVG value={orderNumber || activeOrderId || ""} size={180} level="H" />
+                  </motion.div>
+                </div>
+                
+                {/* Order Items if available */}
+                {orderData?.order_items && orderData.order_items.length > 0 && (
+                  <div className="p-6 border-t border-border/50">
+                    <h3 className="font-bold mb-3 text-sm">Order Details</h3>
+                    <div className="space-y-2">
+                      {orderData.order_items.map((item: any) => (
+                        <div key={item.id} className="flex justify-between text-sm">
+                          <span className="text-muted-foreground">
+                            {item.name} × {item.quantity}
+                          </span>
+                          <span className="font-medium">₹{item.price * item.quantity}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between pt-3 border-t border-border font-bold">
+                        <span>Total Paid</span>
+                        <span className="text-green-600">₹{displayAmount}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="p-6 pt-0">
+                  <div className="p-4 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 text-sm font-medium text-center border border-amber-500/20 mb-4">
+                    ⚠️ This QR code can only be used once
+                  </div>
+                  <Button className="w-full h-12 font-bold" onClick={() => navigate("/my-orders")}>
+                    View My Orders
+                  </Button>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
