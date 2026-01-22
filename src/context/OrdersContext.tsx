@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { Order, CartItem } from '@/types/canteen';
+import { Order } from '@/types/canteen';
 import { supabase } from '@/integrations/supabase/client';
 
 interface OrdersContextType {
@@ -7,7 +7,7 @@ interface OrdersContextType {
   addOrder: (order: Order) => void;
   updateOrderStatus: (orderId: string, status: Order['status']) => void;
   markOrderCollected: (orderId: string) => void;
-  getOrderByQR: (qrCode: string) => Order | undefined;
+  verifyQrCode: (qrCode: string) => Promise<Order | undefined>;
   getOrderById: (orderId: string) => Order | undefined;
 }
 
@@ -24,7 +24,6 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
     if (stored) {
       try {
         const parsed = JSON.parse(stored);
-        // Convert date strings back to Date objects
         const ordersWithDates = parsed.map((order: any) => ({
           ...order,
           createdAt: new Date(order.createdAt),
@@ -62,28 +61,77 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const markOrderCollected = useCallback(async (orderId: string) => {
-    // Update local state immediately
+    // 1. Update Local State (Instant UI feedback)
     setOrders(prev => {
       const updated = prev.map(order =>
-        order.id === orderId ? { ...order, status: 'collected' as const, isUsed: true } : order
+        // Force cast status to satisfy TypeScript
+        order.id === orderId ? { ...order, status: 'collected' as Order['status'], isUsed: true } : order
       );
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       return updated;
     });
 
-    // Also update the database to mark is_used = true
+    // 2. Update Database (The Source of Truth)
     try {
       await supabase
         .from('orders')
-        .update({ is_used: true, status: 'collected' as const })
+        .update({ is_used: true, status: 'collected' })
         .eq('id', orderId);
     } catch (error) {
       console.error('Failed to update order in database:', error);
     }
   }, []);
 
-  const getOrderByQR = useCallback((qrCode: string) => {
-    return orders.find(order => order.qrCode === qrCode || order.id === qrCode);
+  // --- FETCH FROM DATABASE IF NOT FOUND LOCALLY ---
+  const verifyQrCode = useCallback(async (qrCode: string): Promise<Order | undefined> => {
+    // 1. Try Local Search First
+    const localOrder = orders.find(order => order.qrCode === qrCode || order.id === qrCode);
+    if (localOrder) return localOrder;
+
+    console.log("🔍 Order not found locally, checking Supabase for:", qrCode);
+
+    // 2. If not found, Ask Supabase
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select('*')
+        .or(`id.eq.${qrCode},order_number.eq.${qrCode}`)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Supabase Scan Error:", error);
+        return undefined;
+      }
+
+      if (data) {
+        // --- FIX: Cast data to 'any' to bypass strict Type checks ---
+        const dbOrder = data as any;
+
+        const fetchedOrder: Order = {
+          id: dbOrder.id,
+          // Removed 'orderNumber' (doesn't exist in type)
+          qrCode: dbOrder.order_number, 
+          total: dbOrder.total_amount || 0,
+          // Force cast the status (simplified token system)
+          status: (['pending', 'confirmed', 'collected', 'cancelled'].includes(dbOrder.status) 
+            ? dbOrder.status 
+            : 'pending') as Order['status'],
+          paymentMethod: dbOrder.payment_status === 'paid' ? 'online' : 'cash',
+          isUsed: dbOrder.is_used || dbOrder.status === 'collected',
+          createdAt: new Date(dbOrder.created_at),
+          // Handle JSON parsing safely
+          items: typeof dbOrder.items === 'string' 
+            ? JSON.parse(dbOrder.items) 
+            : (dbOrder.items || []),
+          // REMOVED 'userId' here to fix the error
+        };
+        return fetchedOrder;
+      }
+    } catch (err) {
+      console.error("Unexpected scan error:", err);
+    }
+    
+    return undefined;
   }, [orders]);
 
   const getOrderById = useCallback((orderId: string) => {
@@ -96,7 +144,7 @@ export function OrdersProvider({ children }: { children: ReactNode }) {
       addOrder,
       updateOrderStatus,
       markOrderCollected,
-      getOrderByQR,
+      verifyQrCode,
       getOrderById,
     }}>
       {children}

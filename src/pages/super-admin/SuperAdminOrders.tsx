@@ -7,8 +7,8 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  ChefHat,
-  Package
+  Package,
+  Calendar
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -41,7 +41,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSuperAdmin } from '@/context/SuperAdminContext';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { format } from 'date-fns';
+import { format, startOfToday, startOfYesterday, endOfYesterday } from 'date-fns';
 
 interface Order {
   id: string;
@@ -54,7 +54,6 @@ interface Order {
   verification_status: string;
   created_at: string;
   campus?: { name: string; code: string };
-  canteen?: { name: string };
   order_items?: Array<{
     id: string;
     name: string;
@@ -69,6 +68,7 @@ export function SuperAdminOrders() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFilter, setDateFilter] = useState<string>('today');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   const fetchOrders = useCallback(async () => {
@@ -87,21 +87,31 @@ export function SuperAdminOrders() {
         verification_status,
         created_at,
         campus:campuses(name, code),
-        canteen:canteens(name),
         order_items(id, name, quantity, price)
       `)
-      .order('created_at', { ascending: false })
-      .limit(100);
+      .order('created_at', { ascending: false });
 
+    // --- APPLY DATE FILTERS ---
+    if (dateFilter === 'today') {
+      const today = startOfToday();
+      query = query.gte('created_at', today.toISOString());
+    } else if (dateFilter === 'yesterday') {
+      const start = startOfYesterday();
+      const end = endOfYesterday();
+      query = query.gte('created_at', start.toISOString())
+                   .lte('created_at', end.toISOString());
+    }
+
+    // --- CAMPUS FILTER ---
     if (filters.campusId) {
       query = query.eq('campus_id', filters.campusId);
     }
-    if (filters.canteenId) {
-      query = query.eq('canteen_id', filters.canteenId);
-    }
+    
     if (statusFilter !== 'all') {
-      query = query.eq('status', statusFilter as 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected' | 'cancelled');
+      query = query.eq('status', statusFilter as any);
     }
+
+    query = query.limit(dateFilter === 'all' ? 100 : 500);
 
     const { data, error } = await query;
 
@@ -113,7 +123,7 @@ export function SuperAdminOrders() {
     }
     
     setIsLoading(false);
-  }, [filters.campusId, filters.canteenId, statusFilter]);
+  }, [filters.campusId, statusFilter, dateFilter]);
 
   useEffect(() => {
     fetchOrders();
@@ -150,25 +160,24 @@ export function SuperAdminOrders() {
   };
 
   const getStatusBadge = (status: string) => {
-    const configs: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock }> = {
-      pending: { variant: 'secondary', icon: Clock },
-      confirmed: { variant: 'outline', icon: CheckCircle },
-      preparing: { variant: 'default', icon: ChefHat },
-      ready: { variant: 'default', icon: Package },
-      collected: { variant: 'default', icon: CheckCircle },
+    const configs: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; icon: typeof Clock; label: string }> = {
+      pending: { variant: 'secondary', icon: Clock, label: 'Pending' },
+      confirmed: { variant: 'default', icon: CheckCircle, label: 'Approved' },
+      collected: { variant: 'outline', icon: Package, label: 'Collected' },
+      cancelled: { variant: 'destructive', icon: XCircle, label: 'Failed' },
     };
     const config = configs[status] || configs.pending;
     const Icon = config.icon;
     return (
       <Badge variant={config.variant} className="gap-1">
         <Icon className="h-3 w-3" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {config.label}
       </Badge>
     );
   };
 
   const getPaymentBadge = (status: string) => {
-    if (status === 'success') {
+    if (status === 'success' || status === 'paid') {
       return <Badge className="bg-green-500/10 text-green-600 border-green-500/20">Paid</Badge>;
     }
     if (status === 'failed') {
@@ -187,10 +196,11 @@ export function SuperAdminOrders() {
     );
   });
 
-  // Stats
+  // --- UPDATED STATS CALCULATIONS ---
   const totalOrders = orders.length;
-  const pendingOrders = orders.filter(o => o.status === 'pending').length;
-  const preparingOrders = orders.filter(o => ['confirmed', 'preparing'].includes(o.status)).length;
+  // const pendingOrders = orders.filter(o => o.status === 'pending').length; // Removed
+  const confirmedOrders = orders.filter(o => o.status === 'confirmed').length;
+  const rejectedOrders = orders.filter(o => o.status === 'cancelled').length; // Added Rejected count
   const completedOrders = orders.filter(o => o.status === 'collected').length;
 
   return (
@@ -198,9 +208,11 @@ export function SuperAdminOrders() {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">All Orders</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Orders Manager</h1>
           <p className="text-muted-foreground">
-            View and monitor orders across all campuses
+             {dateFilter === 'today' ? "Showing today's live orders" : 
+              dateFilter === 'yesterday' ? "Showing orders from yesterday" : 
+              "Showing complete order history"}
           </p>
         </div>
         <Button variant="outline" onClick={fetchOrders} disabled={isLoading}>
@@ -209,29 +221,38 @@ export function SuperAdminOrders() {
         </Button>
       </div>
 
-      {/* Stats */}
+      {/* Stats - REARRANGED: Total -> Approved -> Rejected -> Collected */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* 1. Total */}
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">Total Orders</div>
+            <div className="text-sm text-muted-foreground">
+              {dateFilter === 'all' ? 'Total Orders' : dateFilter === 'yesterday' ? 'Orders Yesterday' : 'Orders Today'}
+            </div>
             <div className="text-2xl font-bold">{totalOrders}</div>
           </CardContent>
         </Card>
+
+        {/* 2. Approved (Moved Left) */}
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">Pending</div>
-            <div className="text-2xl font-bold text-amber-600">{pendingOrders}</div>
+            <div className="text-sm text-muted-foreground">Approved</div>
+            <div className="text-2xl font-bold text-blue-600">{confirmedOrders}</div>
           </CardContent>
         </Card>
+
+        {/* 3. Rejected (Replaced Pending & Moved Right) */}
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">In Progress</div>
-            <div className="text-2xl font-bold text-blue-600">{preparingOrders}</div>
+            <div className="text-sm text-muted-foreground">Rejected</div>
+            <div className="text-2xl font-bold text-destructive">{rejectedOrders}</div>
           </CardContent>
         </Card>
+
+        {/* 4. Collected */}
         <Card>
           <CardContent className="p-4">
-            <div className="text-sm text-muted-foreground">Completed</div>
+            <div className="text-sm text-muted-foreground">Collected</div>
             <div className="text-2xl font-bold text-green-600">{completedOrders}</div>
           </CardContent>
         </Card>
@@ -242,25 +263,38 @@ export function SuperAdminOrders() {
         <CardHeader className="pb-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <CardTitle>Order History</CardTitle>
+              <CardTitle>Order List</CardTitle>
               <CardDescription>
-                Recent orders from all campuses
+                Manage and track student orders
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              
+              <Select value={dateFilter} onValueChange={setDateFilter}>
+                <SelectTrigger className="w-[140px]">
+                  <Calendar className="w-4 h-4 mr-2 opacity-50" />
+                  <SelectValue placeholder="Date" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="today">Today</SelectItem>
+                  <SelectItem value="yesterday">Yesterday</SelectItem>
+                  <SelectItem value="all">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-36">
+                <SelectTrigger className="w-[140px]">
                   <SelectValue placeholder="Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="confirmed">Confirmed</SelectItem>
-                  <SelectItem value="preparing">Preparing</SelectItem>
-                  <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="confirmed">Approved</SelectItem>
                   <SelectItem value="collected">Collected</SelectItem>
+                  <SelectItem value="cancelled">Failed</SelectItem>
                 </SelectContent>
               </Select>
+
               <div className="relative w-full sm:w-64">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
@@ -291,10 +325,9 @@ export function SuperAdminOrders() {
               <ShoppingBag className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
               <h3 className="font-semibold text-lg">No Orders Found</h3>
               <p className="text-muted-foreground">
-                {searchQuery || statusFilter !== 'all' 
-                  ? 'Try adjusting your filters.'
-                  : 'Orders will appear here when customers place them.'
-                }
+                {dateFilter === 'today' 
+                  ? "No orders have been placed today yet." 
+                  : "No orders found for this filter."}
               </p>
             </div>
           ) : (
@@ -325,12 +358,7 @@ export function SuperAdminOrders() {
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div>
-                          <Badge variant="outline">{order.campus?.code}</Badge>
-                          {order.canteen && (
-                            <p className="text-xs text-muted-foreground mt-1">{order.canteen.name}</p>
-                          )}
-                        </div>
+                        <Badge variant="outline">{order.campus?.code || 'N/A'}</Badge>
                       </TableCell>
                       <TableCell className="font-semibold">
                         {formatCurrency(order.total)}
@@ -379,9 +407,6 @@ export function SuperAdminOrders() {
                 <div>
                   <p className="text-sm text-muted-foreground">Campus</p>
                   <p className="font-medium">{selectedOrder.campus?.name}</p>
-                  {selectedOrder.canteen && (
-                    <p className="text-sm text-muted-foreground">{selectedOrder.canteen.name}</p>
-                  )}
                 </div>
               </div>
 

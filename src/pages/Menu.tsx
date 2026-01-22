@@ -34,6 +34,8 @@ export default function Menu() {
   const {
     filteredItems,
     popularItems,
+    // We will use 'allItems' if it exists in your hook, otherwise we fallback
+    // assuming your hook exposes the raw list. If not, we use this trick:
     currentPeriod,
     isLoading,
     error,
@@ -46,14 +48,21 @@ export default function Menu() {
     navigate("/auth?logout=true");
   };
 
+  // --- TEMP FIX FOR TESTING ---
+  // If filteredItems is empty (due to time), we use popularItems as a fallback
+  // just so you can see *something* to click on.
+  // Ideally, you should update the 'available_time_periods' in Supabase,
+  // but this code change forces items to show up if the time filter hides everything.
+  const itemsToShow = filteredItems.length > 0 ? filteredItems : popularItems;
+
   // Filter items by search query
   const searchedItems = searchQuery
-    ? filteredItems.filter(
+    ? itemsToShow.filter(
         (item) =>
           item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.description.toLowerCase().includes(searchQuery.toLowerCase())
       )
-    : filteredItems;
+    : itemsToShow;
 
   return (
     <PageTransition>
@@ -131,9 +140,7 @@ export default function Menu() {
                   {searchQuery
                     ? `Results for "${searchQuery}"`
                     : selectedCategory === "all"
-                      ? currentPeriod
-                        ? `${currentPeriod.name} Menu`
-                        : "All Items"
+                      ? "All Items (Test Mode)" // Changed title to indicate test mode
                       : selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)}
                 </h2>
                 {!isLoading && !error && (

@@ -73,3 +73,11 @@ export function StudentRoute({ children }: { children: ReactNode }) {
     </ProtectedRoute>
   );
 }
+
+export function SuperAdminRoute({ children }: { children: ReactNode }) {
+  return (
+    <ProtectedRoute allowedRoles={['super_admin']}>
+      {children}
+    </ProtectedRoute>
+  );
+}

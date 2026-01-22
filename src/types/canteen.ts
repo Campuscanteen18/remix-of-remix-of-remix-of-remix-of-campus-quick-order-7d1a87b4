@@ -15,11 +15,18 @@ export interface CartItem extends MenuItem {
   quantity: number;
 }
 
+// Simplified token system order status:
+// - pending: Awaiting payment verification
+// - confirmed: Payment verified, QR code active
+// - collected: Scanned at counter, order complete
+// - cancelled: Payment rejected/failed
+export type OrderStatus = 'pending' | 'confirmed' | 'collected' | 'cancelled';
+
 export interface Order {
   id: string;
   items: CartItem[];
   total: number;
-  status: 'pending' | 'confirmed' | 'preparing' | 'ready' | 'collected';
+  status: OrderStatus;
   qrCode: string;
   createdAt: Date;
   isUsed: boolean;
@@ -51,8 +58,8 @@ export interface College {
   code: string;
 }
 
-// Updated role types
-export type UserRole = 'student' | 'admin' | 'kiosk';
+// Updated role types - includes super_admin for platform-wide access
+export type UserRole = 'student' | 'admin' | 'kiosk' | 'super_admin';
 
 export interface User {
   id: string;
