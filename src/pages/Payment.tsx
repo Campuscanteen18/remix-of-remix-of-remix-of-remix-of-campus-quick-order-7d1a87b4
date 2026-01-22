@@ -8,7 +8,8 @@ import {
   Shield, 
   CheckCircle2,
   XCircle,
-  CreditCard
+  CreditCard,
+  RefreshCw
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/Logo";
@@ -28,33 +29,32 @@ export default function Payment() {
 
   // URL Params
   const mode = searchParams.get("mode"); 
-  const orderIdParam = searchParams.get("order_id"); // Returned by Cashfree
+  const orderIdParam = searchParams.get("order_id");
   const amountParam = searchParams.get("amount");
 
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'init' | 'processing' | 'success' | 'failed'>('init');
   const [cashfree, setCashfree] = useState<any>(null);
 
-  // 1. Load Cashfree SDK on mount
+  // 1. Load Cashfree SDK
   useEffect(() => {
     const initSdk = async () => {
       const cf = await load({
-        mode: "production" // ⚠️ CHANGE TO "production" BEFORE GOING LIVE
+        mode: "production" // Production Mode
       });
       setCashfree(cf);
     };
     initSdk();
   }, []);
 
-  // 2. Handle Returns or New Payments
+  // 2. Handle Returns from Payment Gateway
   useEffect(() => {
     if (orderIdParam) {
-      // User is returning from Cashfree payment page
       verifyPayment(orderIdParam);
     } 
   }, [orderIdParam]);
 
-  // --- LOGIC: START NEW PAYMENT ---
+  // --- 3. START NEW PAYMENT (FIXED) ---
   const handlePayNow = async () => {
     if (!cashfree) return;
     if (cart.length === 0 && mode === 'create') {
@@ -65,32 +65,32 @@ export default function Payment() {
     setIsLoading(true);
 
     try {
-      // A. Create Pending Order in Supabase
       const userData = user as any;
       const customerName = userData?.user_metadata?.full_name || "Student";
-      
-      // Calculate total ensuring 2 decimal places
       const totalAmount = parseFloat(amountParam || "0");
 
+      // 🛑 FIX: Create Order as PENDING first
+      // This prevents "Free Food" if user cancels payment
       const newOrder = await createOrder({
         items: cart,
         total: totalAmount,
-        paymentMethod: "ONLINE", // Marking as Online/Cashfree
+        paymentMethod: "ONLINE", 
         userId: user?.id,
         user_id: user?.id,
         customerName: customerName,
         customerEmail: user?.email,
+        status: "pending",          // <--- Kitchen won't cook it yet
+        payment_status: "pending"   // <--- Money not received yet
       } as any);
 
       if (!newOrder) throw new Error("Could not create order");
 
-      // B. Call Your Backend to get Payment Session
-      // We will create this 'create-payment' function in the next step
+      // B. Call Backend to get Session
       const { data: sessionData, error: sessionError } = await supabase.functions.invoke('create-payment', {
         body: {
           orderId: newOrder.id,
           amount: newOrder.total,
-          customerPhone: "9999999999", // Replace with real phone if available
+          customerPhone: "9999999999", 
           customerName: customerName
         }
       });
@@ -100,12 +100,12 @@ export default function Payment() {
         throw new Error("Failed to contact payment gateway");
       }
 
-      // C. Clear Cart & Redirect to Cashfree
+      // C. Clear Cart & Redirect
       clearCart();
       
       const checkoutOptions = {
         paymentSessionId: sessionData.payment_session_id,
-        redirectTarget: "_self" as const, // Open in same tab
+        redirectTarget: "_self" as const,
       };
       
       await cashfree.checkout(checkoutOptions);
@@ -117,24 +117,35 @@ export default function Payment() {
     }
   };
 
-  // --- LOGIC: VERIFY PAYMENT STATUS ---
+  // --- 4. VERIFY PAYMENT STATUS ---
   const verifyPayment = async (orderId: string) => {
     setStatus('processing');
     
-    // Simple check: Allow database webhook 2-3 seconds to update status
-    setTimeout(async () => {
+    // Check DB every 2 seconds (Max 5 attempts) to see if Webhook updated it
+    let attempts = 0;
+    const maxAttempts = 5;
+
+    const checkStatus = async () => {
+      attempts++;
       const { data: order } = await supabase
         .from('orders')
-        .select('payment_status')
+        .select('payment_status, status')
         .eq('id', orderId)
         .single();
 
+      // If Webhook has updated it to 'paid', show Success
       if (order?.payment_status === 'paid') {
         setStatus('success');
+      } else if (attempts < maxAttempts) {
+        // Not updated yet? Wait 2s and try again
+        setTimeout(checkStatus, 2000);
       } else {
+        // Timed out (Webhook delayed or Payment Failed)
         setStatus('failed'); 
       }
-    }, 2000);
+    };
+
+    checkStatus();
   };
 
   return (
@@ -159,7 +170,7 @@ export default function Payment() {
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
-          {/* STATE: INIT (Show Pay Button) */}
+          {/* STATE: INIT */}
           {(status === 'init' && !orderIdParam) && (
             <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white text-center">
@@ -170,7 +181,7 @@ export default function Payment() {
                   <Button 
                     onClick={handlePayNow} 
                     disabled={isLoading}
-                    className="w-full h-14 text-lg font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg"
+                    className="w-full h-14 text-lg font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg transition-all active:scale-[0.98]"
                   >
                     {isLoading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="mr-2" size={20}/>}
                     {isLoading ? "Processing..." : "Pay Securely"}
@@ -182,23 +193,23 @@ export default function Payment() {
             </div>
           )}
 
-          {/* STATE: PROCESSING RETURN */}
+          {/* STATE: PROCESSING */}
           {(status === 'processing') && (
-            <div className="text-center space-y-4">
+            <div className="text-center space-y-4 py-12">
               <Loader2 className="w-16 h-16 animate-spin text-primary mx-auto" />
               <h2 className="text-xl font-bold">Verifying Payment...</h2>
-              <p className="text-muted-foreground">Please wait a moment.</p>
+              <p className="text-muted-foreground">Please do not close this window.</p>
             </div>
           )}
 
           {/* STATE: SUCCESS */}
           {status === 'success' && (
             <div className="bg-card rounded-2xl shadow-xl border border-border/50 p-8 text-center">
-              <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4">
+              <div className="w-20 h-20 rounded-full bg-green-500/10 flex items-center justify-center mx-auto mb-4 animate-in zoom-in duration-300">
                 <CheckCircle2 className="w-10 h-10 text-green-500" />
               </div>
               <h2 className="text-2xl font-bold text-green-600 mb-2">Payment Successful!</h2>
-              <p className="text-muted-foreground mb-6">Your order has been placed.</p>
+              <p className="text-muted-foreground mb-6">Your order has been placed and sent to the kitchen.</p>
               <Button className="w-full font-bold h-12" onClick={() => navigate('/my-orders')}>
                 View Order Status
               </Button>
@@ -211,11 +222,19 @@ export default function Payment() {
               <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
                 <XCircle className="w-10 h-10 text-red-500" />
               </div>
-              <h2 className="text-2xl font-bold text-red-600 mb-2">Payment Failed</h2>
-              <p className="text-muted-foreground mb-6">We could not verify your payment.</p>
-              <Button className="w-full font-bold h-12" onClick={() => navigate('/menu')}>
-                Try Again
-              </Button>
+              <h2 className="text-2xl font-bold text-red-600 mb-2">Verification Failed</h2>
+              <p className="text-muted-foreground mb-6 text-sm">
+                 We couldn't confirm the payment yet. <br/>
+                 If money was deducted, it will be updated automatically.
+              </p>
+              <div className="space-y-3">
+                <Button variant="outline" className="w-full gap-2" onClick={() => verifyPayment(orderIdParam!)}>
+                   <RefreshCw size={16} /> Check Status Again
+                </Button>
+                <Button className="w-full font-bold" onClick={() => navigate('/my-orders')}>
+                   Go to My Orders
+                </Button>
+              </div>
             </div>
           )}
         </motion.div>
