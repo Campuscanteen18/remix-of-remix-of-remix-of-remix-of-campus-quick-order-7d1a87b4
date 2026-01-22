@@ -122,7 +122,6 @@ export function MobileProfilePanel({
   };
 
   // Get display status based on order and payment status
-  // Simplified token system status display
   const getStatusDisplay = (order: Order) => {
     if (order.status === 'pending' && order.payment_status === 'paid') {
       return { label: 'Verifying...', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
@@ -312,13 +311,18 @@ export function MobileProfilePanel({
             <div className="p-4">
               <h4 className="font-semibold text-sm text-muted-foreground mb-3">SUPPORT</h4>
             
-              <button className="w-full flex items-center justify-between py-3 hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors">
+              {/* --- UPDATED LINK TO SUPPORT PAGE --- */}
+              <Link 
+                to="/support"
+                onClick={onClose}
+                className="w-full flex items-center justify-between py-3 hover:bg-muted/50 rounded-lg px-2 -mx-2 transition-colors"
+              >
                 <div className="flex items-center gap-3">
                   <HelpCircle size={18} className="text-muted-foreground" />
                   <span>Help & Support</span>
                 </div>
                 <ChevronRight size={18} className="text-muted-foreground" />
-              </button>
+              </Link>
             </div>
             
             <Separator />
@@ -385,7 +389,6 @@ export function MobileProfilePanel({
           </div>
         </SheetContent>
       </Sheet>
-
 
       {/* Change Password Dialog */}
       <Dialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen}>

@@ -37,6 +37,7 @@ import VerifyEmail from "./pages/VerifyEmail";
 import TermsAndConditions from "./pages/TermsAndConditions";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import RefundPolicy from "./pages/RefundPolicy";
+import Support from "./pages/Support"; // <--- IMPORT ADDED HERE
 
 // Super Admin Pages
 import { SuperAdminDashboard } from "./pages/super-admin/SuperAdminDashboard";
@@ -109,9 +110,13 @@ const App = () => (
                                 <Route path="/forgot-password" element={<ForgotPassword />} />
                                 <Route path="/reset-password" element={<ResetPassword />} />
                                 <Route path="/verify-email" element={<VerifyEmail />} />
+                                
+                                {/* Policy & Support Routes */}
                                 <Route path="/terms" element={<TermsAndConditions />} />
                                 <Route path="/privacy" element={<PrivacyPolicy />} />
                                 <Route path="/refund-policy" element={<RefundPolicy />} />
+                                <Route path="/support" element={<Support />} /> {/* <--- ROUTE ADDED HERE */}
+                                
                                 <Route path="/my-orders" element={
                                   <CampusGate>
                                     <MyOrders />
