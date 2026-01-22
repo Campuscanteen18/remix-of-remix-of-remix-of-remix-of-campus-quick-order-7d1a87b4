@@ -39,7 +39,7 @@ export default function Payment() {
   useEffect(() => {
     const initSdk = async () => {
       const cf = await load({
-        mode: "sandbox" // ⚠️ CHANGE TO "production" BEFORE GOING LIVE
+        mode: "production" // ⚠️ CHANGE TO "production" BEFORE GOING LIVE
       });
       setCashfree(cf);
     };
