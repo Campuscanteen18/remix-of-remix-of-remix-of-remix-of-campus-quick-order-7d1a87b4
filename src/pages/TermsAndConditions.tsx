@@ -39,7 +39,7 @@ export default function TermsAndConditions() {
             </p>
 
             <p>
-              3. The Platform is owned by BiteOS, a company incorporated under the Companies Act, 1956 with its registered office at SBI COLONY, NANDYAL (hereinafter referred to as 'Platform Owner', 'we', 'us', 'our').
+              3. The Platform is owned by <strong>BiteOS Tech</strong>, a proprietorship/company operating with its registered office at <strong>29-178-32/D6, SBI Colony, Nandyal, Andhra Pradesh - 518501</strong> (hereinafter referred to as "Platform Owner", "we", "us", "our").
             </p>
 
             <p>
@@ -71,23 +71,23 @@ export default function TermsAndConditions() {
             </ul>
 
             <p>
-              10. You shall indemnify and hold harmless Platform Owner, its affiliates, group companies (as applicable) and their respective officers, directors, agents, and employees, from any claim or demand, or actions including reasonable attorney's fees, made by any third party or penalty imposed due to or arising out of Your breach of this Terms of Use, privacy Policy and other Policies, or Your violation of any law, rules or regulations or the rights (including infringement of intellectual property rights) of a third party.
+              8. You shall indemnify and hold harmless Platform Owner, its affiliates, group companies (as applicable) and their respective officers, directors, agents, and employees, from any claim or demand, or actions including reasonable attorney's fees, made by any third party or penalty imposed due to or arising out of Your breach of this Terms of Use, privacy Policy and other Policies, or Your violation of any law, rules or regulations or the rights (including infringement of intellectual property rights) of a third party.
             </p>
 
             <p>
-              11. Notwithstanding anything contained in these Terms of Use, the parties shall not be liable for any failure to perform an obligation under these Terms if performance is prevented or delayed by a force majeure event.
+              9. Notwithstanding anything contained in these Terms of Use, the parties shall not be liable for any failure to perform an obligation under these Terms if performance is prevented or delayed by a force majeure event.
             </p>
 
             <p>
-              12. These Terms and any dispute or claim relating to it, or its enforceability, shall be governed by and construed in accordance with the laws of India.
+              10. These Terms and any dispute or claim relating to it, or its enforceability, shall be governed by and construed in accordance with the laws of India.
             </p>
 
             <p>
-              13. All disputes arising out of or in connection with these Terms shall be subject to the exclusive jurisdiction of the courts in Nandyal.
+              11. All disputes arising out of or in connection with these Terms shall be subject to the exclusive jurisdiction of the courts in <strong>Nandyal, Andhra Pradesh</strong>.
             </p>
 
             <p>
-              14. All concerns or communications relating to these Terms must be communicated to us using the contact information provided on this website.
+              12. All concerns or communications relating to these Terms must be communicated to us using the contact information provided on this website.
             </p>
           </div>
 

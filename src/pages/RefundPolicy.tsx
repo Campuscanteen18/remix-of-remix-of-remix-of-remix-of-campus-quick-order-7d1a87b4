@@ -31,30 +31,56 @@ export default function RefundPolicy() {
 
           <div className="prose prose-sm dark:prose-invert max-w-none space-y-4 text-muted-foreground">
             <p>
-              This refund and cancellation policy outlines how you can cancel or seek a refund for a product/service that you have purchased through the Platform. Under this policy:
+              Thank you for ordering with <strong>BiteOS Tech</strong>. Since we deal in perishable food items prepared on-demand, strictly the following refund and cancellation policies apply:
             </p>
 
             <ol className="list-decimal pl-6 space-y-4">
               <li>
-                <strong className="text-foreground">Cancellation Window:</strong> Cancellations will only be considered if the request is made within 1 day of placing the order. However, cancellation requests may not be entertained if the orders have been communicated to such sellers/merchant(s) listed on the Platform and they have initiated the process of shipping them, or the product is out for delivery. In such an event, you may choose to reject the product at the doorstep.
+                <strong className="text-foreground">Cancellation Policy:</strong> 
+                <p>
+                  You can cancel your order ONLY if the status is <strong>"Pending"</strong> (i.e., the canteen has not yet accepted or started preparing your food). 
+                  <br/>
+                  Once the order status changes to <strong>"Preparing"</strong> or <strong>"Ready"</strong>, the order cannot be cancelled as ingredients have already been used.
+                </p>
               </li>
               
               <li>
-                <strong className="text-foreground">Perishable Items:</strong> BiteOS does not accept cancellation requests for perishable items like flowers, eatables, etc. However, the refund/replacement can be made if the user establishes that the quality of the product delivered is not good.
+                <strong className="text-foreground">Refunds for Cancelled Orders:</strong> 
+                <p>
+                  If you successfully cancel an order while it is still in the "Pending" stage, 100% of the amount will be refunded to your original payment source.
+                </p>
+              </li>
+
+              <li>
+                <strong className="text-foreground">Failed Transactions:</strong> 
+                <p>
+                  If money was deducted from your bank account but the order was not generated due to a technical error (network failure, server issue), the amount will be automatically refunded to your source account.
+                </p>
               </li>
               
               <li>
-                <strong className="text-foreground">Damaged or Defective Items:</strong> In case of receipt of damaged or defective items, please report to our customer service team. The request would be entertained once the seller/merchant listed on the Platform, has checked and determined the same at its own end. This should be reported within 1 day of receipt of products. In case you feel that the product received is not as shown on the site or as per your expectations, you must bring it to the notice of our customer service within 1 day of receiving the product. The customer service team after looking into your complaint will take an appropriate decision.
+                <strong className="text-foreground">Refund Timeline:</strong> 
+                <p>
+                   All refunds (for cancellations or failed transactions) will be processed and credited to your original method of payment (UPI/Bank Account) within <strong>5-7 working days</strong>.
+                </p>
               </li>
               
               <li>
-                <strong className="text-foreground">Warranty Claims:</strong> In case of complaints regarding the products that come with a warranty from the manufacturers, please refer the issue to them.
-              </li>
-              
-              <li>
-                <strong className="text-foreground">Refund Processing:</strong> In case of any refunds approved by BiteOS, it will take 7 days for the refund to be processed to you.
+                <strong className="text-foreground">Returns & Replacements:</strong> 
+                <p>
+                  Since food is a perishable good, <strong>we do not accept returns</strong> once the food has been handed over to you.
+                  <br/>
+                  If you find the food to be stale, foreign objects are found, or the wrong item was served, please report it to the canteen counter immediately (within 15 minutes of pickup) for a replacement or resolution.
+                </p>
               </li>
             </ol>
+
+            <div className="mt-8 p-4 bg-muted/50 rounded-lg border border-border">
+              <h3 className="font-semibold text-foreground mb-2">Need Help?</h3>
+              <p className="text-xs">
+                For any payment-related issues, please email us at <strong>biteostech@gmail.com</strong> or contact the Canteen Manager directly.
+              </p>
+            </div>
           </div>
 
           {/* Footer */}
