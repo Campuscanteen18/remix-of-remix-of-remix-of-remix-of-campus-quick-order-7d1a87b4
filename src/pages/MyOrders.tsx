@@ -22,7 +22,6 @@ import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
-// --- Types ---
 interface OrderItem {
   name: string;
   quantity: number;
@@ -50,7 +49,6 @@ export default function MyOrders() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefetching, setIsRefetching] = useState(false);
 
-  // --- Fetch Logic ---
   const fetchOrders = async () => {
     try {
       if (!user) return;
@@ -68,11 +66,10 @@ export default function MyOrders() {
 
       if (error) throw error;
 
-      // Safe mapping with strict types
       const formattedOrders: Order[] = (data || []).map((order: any) => ({
         id: order.id,
         order_number: order.order_number,
-        total: order.total || order.amount, // Fallback for amount column
+        total: order.total || order.amount,
         status: order.status,
         payment_status: order.payment_status,
         verification_status: order.verification_status,
@@ -80,7 +77,7 @@ export default function MyOrders() {
         created_at: order.created_at,
         campus: order.campus,
         canteen: order.canteen,
-        items: order.order_items || order.items || [] // Fallback for items
+        items: order.order_items || order.items || []
       }));
 
       setOrders(formattedOrders);
@@ -98,7 +95,6 @@ export default function MyOrders() {
     fetchOrders();
   };
 
-  // --- Real-time Subscription ---
   useEffect(() => {
     fetchOrders();
     const channel = supabase
@@ -111,7 +107,6 @@ export default function MyOrders() {
     return () => { supabase.removeChannel(channel); };
   }, [user]);
 
-  // --- Helper: Check Expiry (5 Hours) ---
   const isOrderExpired = (createdAtString: string) => {
     const createdAt = new Date(createdAtString);
     const now = new Date();
@@ -119,7 +114,6 @@ export default function MyOrders() {
     return now.getTime() - createdAt.getTime() > fiveHoursMs;
   };
 
-  // --- UI Helpers ---
   const getStatusConfig = (status: string, verification: string) => {
     if (status === 'collected') return { label: 'Collected', className: 'bg-gray-100 text-gray-700 border-gray-200' };
     if (status === 'cancelled' || verification === 'rejected') return { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
@@ -129,7 +123,6 @@ export default function MyOrders() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20">
-      {/* Header */}
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
           <div className="flex items-center gap-3">
@@ -147,7 +140,6 @@ export default function MyOrders() {
         </div>
       </header>
 
-      {/* Orders List */}
       <main className="p-4 space-y-4 max-w-lg mx-auto">
         {isLoading ? (
           [1, 2].map(i => <Skeleton key={i} className="h-48 w-full rounded-2xl" />)
@@ -165,17 +157,14 @@ export default function MyOrders() {
             const statusConfig = getStatusConfig(order.status, order.verification_status);
             const isExpired = isOrderExpired(order.created_at);
             
-            // LOGIC FLAGS
             const isRejected = order.status === 'cancelled' || order.verification_status === 'rejected';
             const isCollected = order.status === 'collected';
-            // Order is 'ready' if it is approved/confirmed AND not collected yet
             const isReady = (order.status === 'confirmed' || order.status === 'approved' || order.verification_status === 'approved') && !isCollected;
 
             return (
               <Card key={order.id} className="border-none shadow-sm overflow-hidden">
                 <CardContent className="p-0">
                   <div className="p-4 bg-white">
-                    {/* Card Header */}
                     <div className="flex justify-between items-start mb-3">
                       <div>
                         <div className="flex items-center gap-2">
@@ -194,7 +183,6 @@ export default function MyOrders() {
 
                     <Separator className="my-3" />
 
-                    {/* Order Items */}
                     <div className="space-y-1 mb-4">
                       {order.items.map((item, idx) => (
                         <div key={idx} className="flex justify-between text-sm">
@@ -204,9 +192,6 @@ export default function MyOrders() {
                       ))}
                     </div>
 
-                    {/* --- DYNAMIC FOOTER LOGIC --- */}
-                    
-                    {/* 1. REJECTED STATE */}
                     {isRejected ? (
                       <div className="bg-red-50 p-3 rounded-xl border border-red-100">
                         <div className="flex items-start gap-2">
@@ -228,18 +213,16 @@ export default function MyOrders() {
                         </div>
                       </div>
                     ) : isCollected ? (
-                      // 2. COLLECTED STATE (NEW)
                       <div className="bg-gray-100 p-3 rounded-xl border border-gray-200 flex items-center justify-between">
-                         <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2">
                             <CheckCircle2 className="h-5 w-5 text-gray-500" />
                             <div>
                                <p className="font-semibold text-sm text-gray-700">Order Collected</p>
                                <p className="text-xs text-gray-500">Enjoy your meal!</p>
                             </div>
-                         </div>
+                          </div>
                       </div>
                     ) : isReady ? (
-                      // 3. READY STATE (Confirmed/Approved)
                       isExpired ? (
                         <div className="bg-gray-100 p-3 rounded-xl border border-gray-200 text-center">
                           <p className="text-sm font-medium text-gray-500 flex items-center justify-center gap-1">
@@ -250,7 +233,8 @@ export default function MyOrders() {
                       ) : (
                         <div 
                           className="bg-green-50 p-3 rounded-xl border border-green-100 flex items-center justify-between cursor-pointer active:scale-[0.99] transition-transform"
-                          onClick={() => navigate(`/payment?orderId=${order.id}`)}
+                          // ✅ FIXED: Using URL Parameter now
+                          onClick={() => navigate(`/order-success?orderId=${order.id}`)}
                         >
                           <div className="flex items-center gap-3">
                             <div className="bg-white p-1.5 rounded-lg border border-green-100">
@@ -265,7 +249,6 @@ export default function MyOrders() {
                         </div>
                       )
                     ) : (
-                      // 4. PENDING STATE (Default Fallback)
                       <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-center">
                         <p className="text-sm font-medium text-yellow-700 flex items-center justify-center gap-2">
                           <Clock size={16} /> Awaiting Verification
