@@ -114,13 +114,12 @@ export default function MyOrders() {
     return now.getTime() - createdAt.getTime() > fiveHoursMs;
   };
 
-  // Gateway-based payment status logic (no manual verification)
-  const getStatusConfig = (status: string, paymentStatus: string, _verification: string) => {
+  const getStatusConfig = (status: string, paymentStatus: string, verification: string) => {
     if (status === 'collected') return { label: 'Collected', className: 'bg-gray-100 text-gray-700 border-gray-200' };
-    if (status === 'cancelled' || paymentStatus === 'failed') return { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
-    if (status === 'confirmed' && paymentStatus === 'paid') return { label: 'Ready', className: 'bg-green-100 text-green-700 border-green-200' };
-    if (paymentStatus === 'pending') return { label: 'Pending', className: 'bg-orange-100 text-orange-700 border-orange-200' };
-    return { label: 'Processing', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
+    if (status === 'cancelled' || verification === 'rejected' || paymentStatus === 'failed') return { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
+    if ((status === 'confirmed' || status === 'approved' || verification === 'approved') && paymentStatus === 'paid') return { label: 'Ready', className: 'bg-green-100 text-green-700 border-green-200' };
+    if (paymentStatus === 'pending') return { label: 'Payment Pending', className: 'bg-orange-100 text-orange-700 border-orange-200' };
+    return { label: 'Pending', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
   };
 
   return (
@@ -159,11 +158,10 @@ export default function MyOrders() {
             const statusConfig = getStatusConfig(order.status, order.payment_status, order.verification_status);
             const isExpired = isOrderExpired(order.created_at);
             
-            // Gateway-based logic: only check payment_status, not verification_status
-            const isRejected = order.status === 'cancelled' || order.payment_status === 'failed';
-            const isPaymentPending = order.payment_status === 'pending';
+            const isRejected = order.status === 'cancelled' || order.verification_status === 'rejected' || order.payment_status === 'failed';
+            const isPaymentPending = order.payment_status === 'pending' && order.status === 'pending';
             const isCollected = order.status === 'collected';
-            const isReady = order.status === 'confirmed' && order.payment_status === 'paid' && !isCollected;
+            const isReady = (order.status === 'confirmed' || order.status === 'approved' || order.verification_status === 'approved') && order.payment_status === 'paid' && !isCollected;
 
             return (
               <Card key={order.id} className="border-none shadow-sm overflow-hidden">
