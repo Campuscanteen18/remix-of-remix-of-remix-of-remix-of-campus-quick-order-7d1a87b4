@@ -1,21 +1,16 @@
-// Setup: Allowed Headers for Browser Security (CORS)
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-// 1. Start the Server
 Deno.serve(async (req) => {
-  // 2. Handle Browser Preflight Check
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // 3. Read Data
     const { orderId, amount, customerName, customerPhone, customerId } = await req.json()
 
-    // 4. Get Keys
     const APP_ID = Deno.env.get('CASHFREE_APP_ID')
     const SECRET_KEY = Deno.env.get('CASHFREE_SECRET_KEY')
     const CASHFREE_URL = "https://api.cashfree.com/pg/orders"
@@ -24,7 +19,6 @@ Deno.serve(async (req) => {
       throw new Error("Missing Cashfree Keys in Supabase Secrets")
     }
 
-    // 5. Send to Cashfree
     const returnUrl = `${req.headers.get('origin')}/payment?order_id={order_id}`
     
     const payload = {
@@ -61,15 +55,15 @@ Deno.serve(async (req) => {
       throw new Error(data.message || "Cashfree rejected the request")
     }
 
-    // 6. Success
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
 
-  } catch (error: any) { // <--- THIS :any IS THE FIX
-    console.error("Function Error:", error.message)
-    return new Response(JSON.stringify({ error: error.message || "Unknown Error" }), {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown Error"
+    console.error("Function Error:", message)
+    return new Response(JSON.stringify({ error: message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     })
