@@ -31,6 +31,7 @@ export default function Payment() {
   const mode = searchParams.get("mode"); 
   const orderIdParam = searchParams.get("order_id");
   const amountParam = searchParams.get("amount");
+  const isRetryMode = mode === 'retry' && orderIdParam;
 
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'init' | 'processing' | 'success' | 'failed'>('init');
@@ -54,14 +55,10 @@ export default function Payment() {
     } 
   }, [orderIdParam]);
 
-  // --- 3. START NEW PAYMENT (FIXED) ---
+  // --- 3. START NEW PAYMENT OR RETRY ---
   const handlePayNow = async () => {
     if (!cashfree) return;
-    if (cart.length === 0 && mode === 'create') {
-      navigate('/menu');
-      return;
-    }
-
+    
     setIsLoading(true);
 
     try {
@@ -69,27 +66,38 @@ export default function Payment() {
       const customerName = userData?.user_metadata?.full_name || "Student";
       const totalAmount = parseFloat(amountParam || "0");
 
-      // 🛑 FIX: Create Order as PENDING first
-      // This prevents "Free Food" if user cancels payment
-      const newOrder = await createOrder({
-        items: cart,
-        total: totalAmount,
-        paymentMethod: "ONLINE", 
-        userId: user?.id,
-        user_id: user?.id,
-        customerName: customerName,
-        customerEmail: user?.email,
-        status: "pending",          // <--- Kitchen won't cook it yet
-        payment_status: "pending"   // <--- Money not received yet
-      } as any);
+      let orderId: string;
 
-      if (!newOrder) throw new Error("Could not create order");
+      // If retrying an existing order, use that order ID
+      if (isRetryMode && orderIdParam) {
+        orderId = orderIdParam;
+      } else {
+        // Create new order as PENDING
+        if (cart.length === 0) {
+          navigate('/menu');
+          return;
+        }
 
-      // B. Call Backend to get Session
+        const newOrder = await createOrder({
+          items: cart,
+          total: totalAmount,
+          paymentMethod: "ONLINE", 
+          customerName: customerName,
+          customerEmail: user?.email,
+        });
+
+        if (!newOrder) throw new Error("Could not create order");
+        orderId = newOrder.id;
+        
+        // Clear cart only for new orders
+        clearCart();
+      }
+
+      // Call Backend to get Cashfree Session
       const { data: sessionData, error: sessionError } = await supabase.functions.invoke('create-payment', {
         body: {
-          orderId: newOrder.id,
-          amount: newOrder.total,
+          orderId: orderId,
+          amount: totalAmount,
           customerPhone: "9999999999", 
           customerName: customerName
         }
@@ -99,9 +107,6 @@ export default function Payment() {
         console.error("Backend Error:", sessionError);
         throw new Error("Failed to contact payment gateway");
       }
-
-      // C. Clear Cart & Redirect
-      clearCart();
       
       const checkoutOptions = {
         paymentSessionId: sessionData.payment_session_id,
@@ -170,10 +175,13 @@ export default function Payment() {
           animate={{ opacity: 1, y: 0 }}
           className="w-full max-w-md"
         >
-          {/* STATE: INIT */}
-          {(status === 'init' && !orderIdParam) && (
+          {/* STATE: INIT - New Payment or Retry */}
+          {(status === 'init' && (!orderIdParam || isRetryMode)) && (
             <div className="bg-card rounded-2xl shadow-xl border border-border/50 overflow-hidden">
                <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white text-center">
+                  {isRetryMode && (
+                    <p className="text-xs opacity-80 mb-2 uppercase tracking-wider">Retry Payment</p>
+                  )}
                   <p className="text-sm opacity-90 font-medium tracking-wide uppercase">Total Payable</p>
                   <p className="text-5xl font-extrabold mt-2 tracking-tight">₹{parseFloat(amountParam || "0").toFixed(0)}</p>
                </div>
@@ -184,7 +192,7 @@ export default function Payment() {
                     className="w-full h-14 text-lg font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg transition-all active:scale-[0.98]"
                   >
                     {isLoading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="mr-2" size={20}/>}
-                    {isLoading ? "Processing..." : "Pay Securely"}
+                    {isLoading ? "Processing..." : isRetryMode ? "Pay Again" : "Pay Securely"}
                   </Button>
                   <p className="text-center text-xs text-muted-foreground">
                     Secured by Cashfree Payments. <br/> UPI, Cards, and Netbanking supported.

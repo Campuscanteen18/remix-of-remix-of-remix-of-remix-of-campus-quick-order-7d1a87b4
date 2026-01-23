@@ -114,10 +114,11 @@ export default function MyOrders() {
     return now.getTime() - createdAt.getTime() > fiveHoursMs;
   };
 
-  const getStatusConfig = (status: string, verification: string) => {
+  const getStatusConfig = (status: string, paymentStatus: string, verification: string) => {
     if (status === 'collected') return { label: 'Collected', className: 'bg-gray-100 text-gray-700 border-gray-200' };
-    if (status === 'cancelled' || verification === 'rejected') return { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
-    if (status === 'confirmed' || status === 'approved' || verification === 'approved') return { label: 'Approved', className: 'bg-green-100 text-green-700 border-green-200' };
+    if (status === 'cancelled' || verification === 'rejected' || paymentStatus === 'failed') return { label: 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
+    if ((status === 'confirmed' || status === 'approved' || verification === 'approved') && paymentStatus === 'paid') return { label: 'Ready', className: 'bg-green-100 text-green-700 border-green-200' };
+    if (paymentStatus === 'pending') return { label: 'Payment Pending', className: 'bg-orange-100 text-orange-700 border-orange-200' };
     return { label: 'Pending', className: 'bg-yellow-100 text-yellow-700 border-yellow-200' };
   };
 
@@ -154,12 +155,13 @@ export default function MyOrders() {
           </div>
         ) : (
           orders.map((order) => {
-            const statusConfig = getStatusConfig(order.status, order.verification_status);
+            const statusConfig = getStatusConfig(order.status, order.payment_status, order.verification_status);
             const isExpired = isOrderExpired(order.created_at);
             
-            const isRejected = order.status === 'cancelled' || order.verification_status === 'rejected';
+            const isRejected = order.status === 'cancelled' || order.verification_status === 'rejected' || order.payment_status === 'failed';
+            const isPaymentPending = order.payment_status === 'pending' && order.status === 'pending';
             const isCollected = order.status === 'collected';
-            const isReady = (order.status === 'confirmed' || order.status === 'approved' || order.verification_status === 'approved') && !isCollected;
+            const isReady = (order.status === 'confirmed' || order.status === 'approved' || order.verification_status === 'approved') && order.payment_status === 'paid' && !isCollected;
 
             return (
               <Card key={order.id} className="border-none shadow-sm overflow-hidden">
@@ -248,12 +250,31 @@ export default function MyOrders() {
                           <ChevronRight className="h-5 w-5 text-green-400" />
                         </div>
                       )
+                    ) : isPaymentPending ? (
+                      <div className="bg-orange-50 p-3 rounded-xl border border-orange-100">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="h-5 w-5 text-orange-600 mt-0.5 shrink-0" />
+                          <div className="w-full">
+                            <p className="font-semibold text-sm text-orange-700">Payment Incomplete</p>
+                            <p className="text-xs text-orange-600 mt-0.5">
+                              Complete the payment to confirm your order
+                            </p>
+                            <Button 
+                              size="sm" 
+                              className="w-full mt-3 bg-orange-600 hover:bg-orange-700 text-white h-9 text-sm font-semibold"
+                              onClick={() => navigate(`/payment?order_id=${order.id}&amount=${order.total}&mode=retry`)}
+                            >
+                              <RefreshCw size={14} className="mr-2" /> Pay Again
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
                     ) : (
                       <div className="bg-yellow-50 p-3 rounded-xl border border-yellow-100 text-center">
                         <p className="text-sm font-medium text-yellow-700 flex items-center justify-center gap-2">
-                          <Clock size={16} /> Awaiting Verification
+                          <Clock size={16} /> Processing Payment
                         </p>
-                        <p className="text-xs text-yellow-600 mt-1">Admin is reviewing your payment</p>
+                        <p className="text-xs text-yellow-600 mt-1">Verifying your payment...</p>
                       </div>
                     )}
                   </div>
