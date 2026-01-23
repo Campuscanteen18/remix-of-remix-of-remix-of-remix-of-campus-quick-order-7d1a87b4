@@ -48,13 +48,12 @@ export default function Payment() {
     initSdk();
   }, []);
 
-  // 2. Handle Returns from Payment Gateway (NOT for retry mode)
+  // 2. Handle Returns from Payment Gateway
   useEffect(() => {
-    // Only verify if we have an order_id AND it's NOT a retry attempt
-    if (orderIdParam && !isRetryMode) {
+    if (orderIdParam) {
       verifyPayment(orderIdParam);
     } 
-  }, [orderIdParam, isRetryMode]);
+  }, [orderIdParam]);
 
   // --- 3. START NEW PAYMENT OR RETRY ---
   const handlePayNow = async () => {
