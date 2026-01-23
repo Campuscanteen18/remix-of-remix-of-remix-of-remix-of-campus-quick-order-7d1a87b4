@@ -9,14 +9,15 @@ import { Logo } from '@/components/Logo';
 import { useCampus } from '@/context/CampusContext';
 import { supabase } from '@/integrations/supabase/client';
 import { z } from 'zod';
-import { Mail, Lock, User, ArrowRight, Loader2, Building2, RefreshCw, AlertTriangle } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Loader2, Building2, RefreshCw, AlertTriangle, Phone } from 'lucide-react';
 import { checkLoginRateLimit, recordLoginAttempt } from '@/lib/rateLimit';
-import { sanitizeEmail, sanitizeText } from '@/lib/sanitize';
+import { sanitizeEmail } from '@/lib/sanitize';
 
 // Validation schemas
 const emailSchema = z.string().trim().email('Please enter a valid email address').max(255, 'Email is too long');
 const passwordSchema = z.string().min(6, 'Password must be at least 6 characters').max(72, 'Password is too long');
 const nameSchema = z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name is too long');
+const phoneSchema = z.string().trim().min(10, 'Phone number must be at least 10 digits').max(15, 'Phone number is too long').regex(/^\+?[0-9]+$/, 'Invalid phone number format');
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -31,6 +32,7 @@ export default function Auth() {
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupName, setSignupName] = useState('');
+  const [signupPhone, setSignupPhone] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [rateLimitMessage, setRateLimitMessage] = useState<string | null>(null);
 
@@ -104,27 +106,10 @@ export default function Auth() {
           ]);
 
           const userRole = rolesResult.data?.role;
-          const userHomeCampusId = profileResult.data?.campus_id || rolesResult.data?.campus_id;
-          const currentCampusId = campus?.id;
-
+          
           if (userRole === 'admin' || userRole === 'kiosk') {
-            if (currentCampusId && userHomeCampusId && currentCampusId !== userHomeCampusId) {
-              toast({
-                title: 'Access Denied',
-                description: 'You can only access the admin dashboard at your home campus.',
-                variant: 'destructive',
-              });
-              await supabase.auth.signOut();
-              return;
-            }
             navigate(userRole === 'admin' ? '/admin' : '/kiosk-scanner');
           } else {
-            if (currentCampusId && userHomeCampusId && currentCampusId !== userHomeCampusId) {
-              toast({
-                title: 'Welcome, Visitor! 🎉',
-                description: `You are visiting ${campus?.name || 'this campus'}. Enjoy your meal!`,
-              });
-            }
             navigate('/menu');
           }
         }, 0);
@@ -138,54 +123,18 @@ export default function Auth() {
 
   const validateLoginForm = () => {
     const newErrors: Record<string, string> = {};
-    
-    try {
-      emailSchema.parse(loginEmail);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        newErrors.loginEmail = err.errors[0].message;
-      }
-    }
-    
-    try {
-      passwordSchema.parse(loginPassword);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        newErrors.loginPassword = err.errors[0].message;
-      }
-    }
-    
+    try { emailSchema.parse(loginEmail); } catch (err: any) { newErrors.loginEmail = err.errors[0].message; }
+    try { passwordSchema.parse(loginPassword); } catch (err: any) { newErrors.loginPassword = err.errors[0].message; }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
   const validateSignupForm = () => {
     const newErrors: Record<string, string> = {};
-    
-    try {
-      nameSchema.parse(signupName);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        newErrors.signupName = err.errors[0].message;
-      }
-    }
-    
-    try {
-      emailSchema.parse(signupEmail);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        newErrors.signupEmail = err.errors[0].message;
-      }
-    }
-    
-    try {
-      passwordSchema.parse(signupPassword);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        newErrors.signupPassword = err.errors[0].message;
-      }
-    }
-    
+    try { nameSchema.parse(signupName); } catch (err: any) { newErrors.signupName = err.errors[0].message; }
+    try { phoneSchema.parse(signupPhone); } catch (err: any) { newErrors.signupPhone = err.errors[0].message; }
+    try { emailSchema.parse(signupEmail); } catch (err: any) { newErrors.signupEmail = err.errors[0].message; }
+    try { passwordSchema.parse(signupPassword); } catch (err: any) { newErrors.signupPassword = err.errors[0].message; }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -194,21 +143,16 @@ export default function Auth() {
     e.preventDefault();
     clearErrors();
     setRateLimitMessage(null);
-    
     if (!validateLoginForm()) return;
 
-    // Sanitize inputs
     const sanitizedEmail = sanitizeEmail(loginEmail);
-
-    // Check rate limit
     const rateLimit = checkLoginRateLimit(sanitizedEmail);
     if (!rateLimit.allowed) {
-      setRateLimitMessage(rateLimit.message || 'Too many login attempts. Please try again later.');
+      setRateLimitMessage(rateLimit.message || 'Too many login attempts.');
       return;
     }
 
     setIsLoading(true);
-    
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: sanitizedEmail,
@@ -216,40 +160,14 @@ export default function Auth() {
       });
       
       if (error) {
-        // Record failed attempt
         recordLoginAttempt(sanitizedEmail, false);
-        
-        // Update rate limit message if needed
-        const newRateLimit = checkLoginRateLimit(sanitizedEmail);
-        if (newRateLimit.remainingAttempts <= 2 && newRateLimit.remainingAttempts > 0) {
-          setRateLimitMessage(`${newRateLimit.remainingAttempts} attempts remaining`);
-        }
-        
-        toast({
-          title: 'Login Failed',
-          description: error.message === 'Invalid login credentials' 
-            ? 'Invalid email or password. Please try again.' 
-            : error.message,
-          variant: 'destructive',
-        });
+        toast({ title: 'Login Failed', description: 'Invalid email or password.', variant: 'destructive' });
         return;
       }
-
-      // Record successful login
       recordLoginAttempt(sanitizedEmail, true);
-
-      if (data.user) {
-        toast({
-          title: 'Welcome back!',
-          description: 'Successfully logged in.',
-        });
-      }
+      if (data.user) toast({ title: 'Welcome back!', description: 'Successfully logged in.' });
     } catch (error) {
-      toast({
-        title: 'Login Failed',
-        description: 'An unexpected error occurred. Please try again.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Login Failed', description: 'Error occurred.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -258,15 +176,10 @@ export default function Auth() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     clearErrors();
-    
     if (!validateSignupForm()) return;
 
     if (!campus?.id) {
-      toast({
-        title: 'Campus Required',
-        description: 'Please select a campus before signing up.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Campus Required', description: 'Please select a campus first.', variant: 'destructive' });
       navigate('/select-campus');
       return;
     }
@@ -274,8 +187,28 @@ export default function Auth() {
     setIsLoading(true);
     
     try {
-      const redirectUrl = `${window.location.origin}/`;
+      // 1. CHECK FOR DUPLICATE PHONE (Using our SQL function)
+      // FIX: Added 'as any' to bypass TypeScript check for the new function
+      const { data: phoneExists, error: rpcError } = await supabase
+        .rpc('check_phone_exists' as any, { phone_input: signupPhone.trim() });
+
+      if (rpcError) {
+         console.error("RPC Error:", rpcError); 
+      }
       
+      // If RPC returned true, phone is taken
+      if (phoneExists) {
+         toast({ 
+            title: 'Phone Already Registered', 
+            description: 'This number is already in use. Please login instead.', 
+            variant: 'destructive' 
+         });
+         setIsLoading(false);
+         return; 
+      }
+
+      // 2. Proceed with Signup
+      const redirectUrl = `${window.location.origin}/`;
       const { data, error } = await supabase.auth.signUp({
         email: signupEmail.trim(),
         password: signupPassword,
@@ -284,50 +217,30 @@ export default function Auth() {
           data: {
             campus_id: campus.id,
             full_name: signupName.trim(),
+            phone: signupPhone.trim(), 
           },
         },
       });
       
       if (error) {
-        let errorMessage = error.message;
-        
-        if (error.message.includes('already registered')) {
-          errorMessage = 'This email is already registered. Please login instead.';
+        let msg = error.message;
+        if (msg.includes('already registered') || msg.includes('unique')) {
+           msg = 'This email is already registered. Please login.';
         }
-        
-        toast({
-          title: 'Signup Failed',
-          description: errorMessage,
-          variant: 'destructive',
-        });
+        toast({ title: 'Signup Failed', description: msg, variant: 'destructive' });
         return;
       }
 
       if (data.user) {
-        if (data.user.identities?.length === 0) {
-          toast({
-            title: 'Email Already Exists',
-            description: 'This email is already registered. Please login instead.',
-            variant: 'destructive',
-          });
-        } else if (data.session) {
-          toast({
-            title: 'Account Created!',
-            description: 'Welcome to Campus Canteen.',
-          });
-        } else {
-          toast({
-            title: 'Check Your Email',
-            description: 'We sent you a confirmation link. Please check your inbox.',
-          });
+        // Ensure profile is synced immediately
+        if (data.session) {
+          await supabase.from('profiles').update({ phone: signupPhone.trim() }).eq('id', data.user.id);
         }
+        toast({ title: 'Account Created!', description: 'Welcome to Campus Canteen.' });
       }
     } catch (error) {
-      toast({
-        title: 'Signup Failed',
-        description: 'An unexpected error occurred. Please try again.',
-        variant: 'destructive',
-      });
+      console.error(error);
+      toast({ title: 'Signup Failed', description: 'An unexpected error occurred.', variant: 'destructive' });
     } finally {
       setIsLoading(false);
     }
@@ -335,143 +248,58 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      {/* Subtle background */}
       <div className="fixed inset-0 bg-gradient-to-br from-primary/[0.02] via-transparent to-secondary/[0.02]" />
-      
       <div className="relative w-full max-w-[380px]">
-        {/* Campus Badge with Switch Button */}
+        
         {campus && (
           <div className="flex items-center justify-center gap-2 mb-5">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-muted text-muted-foreground">
               <Building2 size={14} />
               <span className="text-xs font-medium">{campus.name}</span>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5"
-              onClick={() => navigate('/select-campus')}
-            >
-              <RefreshCw size={12} />
-              Switch
+            <Button variant="ghost" size="sm" onClick={() => navigate('/select-campus')} className="h-8 px-2.5 text-xs text-muted-foreground gap-1.5">
+              <RefreshCw size={12} /> Switch
             </Button>
           </div>
         )}
         
-        {/* Logo Section */}
         <div className="text-center mb-6">
-          <div className="flex justify-center mb-4">
-            <Logo size="lg" showText={false} />
-          </div>
-          <h1 className="font-display text-xl font-semibold text-foreground">
-            {campus?.name || 'Campus'} Canteen
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Sign in to order your favorite food
-          </p>
+          <div className="flex justify-center mb-4"><Logo size="lg" showText={false} /></div>
+          <h1 className="font-display text-xl font-semibold text-foreground">{campus?.name || 'Campus'} Canteen</h1>
+          <p className="text-sm text-muted-foreground mt-1">Sign in to order your favorite food</p>
         </div>
 
-        {/* Auth Card */}
         <div className="bg-card rounded-2xl shadow-soft border border-border p-5">
           <Tabs defaultValue="login" className="w-full" onValueChange={clearErrors}>
             <TabsList className="grid w-full grid-cols-2 mb-5 h-10 rounded-xl bg-muted p-1">
-              <TabsTrigger 
-                value="login" 
-                className="rounded-lg text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm"
-              >
-                Login
-              </TabsTrigger>
-              <TabsTrigger 
-                value="signup" 
-                className="rounded-lg text-sm font-medium data-[state=active]:bg-card data-[state=active]:shadow-sm"
-              >
-                Sign Up
-              </TabsTrigger>
+              <TabsTrigger value="login" className="rounded-lg text-sm font-medium">Login</TabsTrigger>
+              <TabsTrigger value="signup" className="rounded-lg text-sm font-medium">Sign Up</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login" className="mt-0">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="login-email" className="text-xs font-medium text-muted-foreground">
-                    Email
-                  </Label>
+                  <Label htmlFor="login-email">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="login-email"
-                      type="email"
-                      placeholder="you@college.edu"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      className={`h-11 pl-10 rounded-xl ${errors.loginEmail ? 'border-destructive' : ''}`}
-                      required
-                      disabled={isLoading}
-                      autoComplete="email"
-                    />
+                    <Input id="login-email" type="email" placeholder="you@college.edu" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} className="h-11 pl-10 rounded-xl" required disabled={isLoading} />
                   </div>
-                  {errors.loginEmail && (
-                    <p className="text-xs text-destructive">{errors.loginEmail}</p>
-                  )}
+                  {errors.loginEmail && <p className="text-xs text-destructive">{errors.loginEmail}</p>}
                 </div>
-
                 <div className="space-y-1.5">
-                  <Label htmlFor="login-password" className="text-xs font-medium text-muted-foreground">
-                    Password
-                  </Label>
+                  <Label htmlFor="login-password">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="login-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={loginPassword}
-                      onChange={(e) => setLoginPassword(e.target.value)}
-                      className={`h-11 pl-10 rounded-xl ${errors.loginPassword ? 'border-destructive' : ''}`}
-                      required
-                      disabled={isLoading}
-                      autoComplete="current-password"
-                    />
+                    <Input id="login-password" type="password" placeholder="••••••••" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="h-11 pl-10 rounded-xl" required disabled={isLoading} />
                   </div>
-                  {errors.loginPassword && (
-                    <p className="text-xs text-destructive">{errors.loginPassword}</p>
-                  )}
+                  {errors.loginPassword && <p className="text-xs text-destructive">{errors.loginPassword}</p>}
                 </div>
-
-                <Button 
-                  type="submit" 
-                  className="w-full h-11 font-semibold rounded-xl gap-2 mt-2" 
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Signing in...
-                    </>
-                  ) : (
-                    <>
-                      Sign In
-                      <ArrowRight size={16} />
-                    </>
-                  )}
+                <Button type="submit" className="w-full h-11 font-semibold rounded-xl gap-2 mt-2" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Sign In <ArrowRight size={16} /></>}
                 </Button>
-
-                {/* Rate Limit Warning */}
-                {rateLimitMessage && (
-                  <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-500">
-                    <AlertTriangle size={16} />
-                    <span className="text-xs font-medium">{rateLimitMessage}</span>
-                  </div>
-                )}
-
-                {/* Forgot Password Link */}
+                {rateLimitMessage && <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 text-amber-600"><AlertTriangle size={16} /><span className="text-xs">{rateLimitMessage}</span></div>}
                 <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={() => navigate('/forgot-password')}
-                    className="text-xs text-muted-foreground hover:text-primary transition-colors"
-                  >
-                    Forgot your password?
-                  </button>
+                    <button type="button" onClick={() => navigate('/forgot-password')} className="text-xs text-muted-foreground hover:text-primary">Forgot your password?</button>
                 </div>
               </form>
             </TabsContent>
@@ -479,100 +307,47 @@ export default function Auth() {
             <TabsContent value="signup" className="mt-0">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label htmlFor="signup-name" className="text-xs font-medium text-muted-foreground">
-                    Full Name
-                  </Label>
+                  <Label htmlFor="signup-name">Full Name</Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="signup-name"
-                      type="text"
-                      placeholder="John Doe"
-                      value={signupName}
-                      onChange={(e) => setSignupName(e.target.value)}
-                      className={`h-11 pl-10 rounded-xl ${errors.signupName ? 'border-destructive' : ''}`}
-                      required
-                      disabled={isLoading}
-                      autoComplete="name"
-                    />
+                    <Input id="signup-name" placeholder="John Doe" value={signupName} onChange={(e) => setSignupName(e.target.value)} className="h-11 pl-10 rounded-xl" required disabled={isLoading} />
                   </div>
-                  {errors.signupName && (
-                    <p className="text-xs text-destructive">{errors.signupName}</p>
-                  )}
+                  {errors.signupName && <p className="text-xs text-destructive">{errors.signupName}</p>}
+                </div>
+                
+                {/* Phone Field */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="signup-phone">Phone Number</Label>
+                  <div className="relative">
+                    <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input id="signup-phone" type="tel" placeholder="99999 99999" value={signupPhone} onChange={(e) => setSignupPhone(e.target.value)} className="h-11 pl-10 rounded-xl" required disabled={isLoading} />
+                  </div>
+                  {errors.signupPhone && <p className="text-xs text-destructive">{errors.signupPhone}</p>}
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="signup-email" className="text-xs font-medium text-muted-foreground">
-                    Email
-                  </Label>
+                  <Label htmlFor="signup-email">Email</Label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="signup-email"
-                      type="email"
-                      placeholder="you@college.edu"
-                      value={signupEmail}
-                      onChange={(e) => setSignupEmail(e.target.value)}
-                      className={`h-11 pl-10 rounded-xl ${errors.signupEmail ? 'border-destructive' : ''}`}
-                      required
-                      disabled={isLoading}
-                      autoComplete="email"
-                    />
+                    <Input id="signup-email" type="email" placeholder="you@college.edu" value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)} className="h-11 pl-10 rounded-xl" required disabled={isLoading} />
                   </div>
-                  {errors.signupEmail && (
-                    <p className="text-xs text-destructive">{errors.signupEmail}</p>
-                  )}
+                  {errors.signupEmail && <p className="text-xs text-destructive">{errors.signupEmail}</p>}
                 </div>
-
                 <div className="space-y-1.5">
-                  <Label htmlFor="signup-password" className="text-xs font-medium text-muted-foreground">
-                    Password
-                  </Label>
+                  <Label htmlFor="signup-password">Password</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input
-                      id="signup-password"
-                      type="password"
-                      placeholder="••••••••"
-                      value={signupPassword}
-                      onChange={(e) => setSignupPassword(e.target.value)}
-                      className={`h-11 pl-10 rounded-xl ${errors.signupPassword ? 'border-destructive' : ''}`}
-                      required
-                      disabled={isLoading}
-                      autoComplete="new-password"
-                    />
+                    <Input id="signup-password" type="password" placeholder="••••••••" value={signupPassword} onChange={(e) => setSignupPassword(e.target.value)} className="h-11 pl-10 rounded-xl" required disabled={isLoading} />
                   </div>
-                  {errors.signupPassword && (
-                    <p className="text-xs text-destructive">{errors.signupPassword}</p>
-                  )}
+                  {errors.signupPassword && <p className="text-xs text-destructive">{errors.signupPassword}</p>}
                 </div>
-
-                <Button 
-                  type="submit" 
-                  className="w-full h-11 font-semibold rounded-xl gap-2 mt-2" 
-                  disabled={isLoading}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Creating account...
-                    </>
-                  ) : (
-                    <>
-                      Create Account
-                      <ArrowRight size={16} />
-                    </>
-                  )}
+                <Button type="submit" className="w-full h-11 font-semibold rounded-xl gap-2 mt-2" disabled={isLoading}>
+                  {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Create Account <ArrowRight size={16} /></>}
                 </Button>
               </form>
             </TabsContent>
           </Tabs>
         </div>
-
-        {/* Footer */}
-        <p className="text-center text-xs text-muted-foreground mt-5">
-          By continuing, you agree to our Terms of Service
-        </p>
       </div>
     </div>
   );

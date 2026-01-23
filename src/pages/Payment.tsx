@@ -9,9 +9,13 @@ import {
   CheckCircle2,
   XCircle,
   CreditCard,
-  RefreshCw
+  RefreshCw,
+  User,
+  Phone
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Logo } from "@/components/Logo";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,16 +41,52 @@ export default function Payment() {
   const [status, setStatus] = useState<'init' | 'processing' | 'success' | 'failed'>('init');
   const [cashfree, setCashfree] = useState<any>(null);
 
-  // 1. Load Cashfree SDK
+  // --- NEW: State for User Details ---
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+
+  // 1. Load Cashfree SDK & Fetch Profile Data
   useEffect(() => {
     const initSdk = async () => {
       const cf = await load({
-        mode: "production" // Production Mode
+        mode: "production" 
       });
       setCashfree(cf);
     };
     initSdk();
-  }, []);
+
+    // --- FETCH PROFILE DATA FROM DB ---
+    const fetchProfileData = async () => {
+        if (!user) return;
+
+        try {
+            // A. Try to get data from 'profiles' table
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('full_name, phone')
+                .eq('user_id', user.id)
+                .maybeSingle();
+
+            // B. Fallback to Auth Metadata
+            // FIX: Cast to 'any' to avoid TypeScript error
+            const safeUser = user as any;
+            const metaName = safeUser.user_metadata?.full_name;
+            const metaPhone = safeUser.user_metadata?.phone;
+
+            // C. Set State (Priority: DB > Metadata > Empty)
+            if (profile?.full_name) setName(profile.full_name);
+            else if (metaName) setName(metaName);
+
+            if (profile?.phone) setPhone(profile.phone);
+            else if (metaPhone) setPhone(metaPhone);
+
+        } catch (err) {
+            console.error("Error fetching profile:", err);
+        }
+    };
+
+    fetchProfileData();
+  }, [user]);
 
   // 2. Handle Returns from Payment Gateway
   useEffect(() => {
@@ -59,13 +99,28 @@ export default function Payment() {
   const handlePayNow = async () => {
     if (!cashfree) return;
     
+    // VALIDATION: Phone & Name are required for Cashfree
+    if (!phone || phone.length < 10) {
+      toast({ 
+        title: "Phone Number Required", 
+        description: "Please enter a valid phone number for the invoice.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    if (!name) {
+      toast({ 
+        title: "Name Required", 
+        description: "Please enter your name.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const userData = user as any;
-      const customerName = userData?.user_metadata?.full_name || "Student";
       const totalAmount = parseFloat(amountParam || "0");
-
       let orderId: string;
 
       // If retrying an existing order, use that order ID
@@ -82,14 +137,17 @@ export default function Payment() {
           items: cart,
           total: totalAmount,
           paymentMethod: "ONLINE", 
-          customerName: customerName,
+          userId: user?.id,
+          user_id: user?.id,
+          customerName: name,     // <--- Using State Value
           customerEmail: user?.email,
-        });
+          status: "pending",
+          payment_status: "pending"
+        } as any);
 
         if (!newOrder) throw new Error("Could not create order");
         orderId = newOrder.id;
         
-        // Clear cart only for new orders
         clearCart();
       }
 
@@ -98,8 +156,9 @@ export default function Payment() {
         body: {
           orderId: orderId,
           amount: totalAmount,
-          customerPhone: "9999999999", 
-          customerName: customerName
+          customerPhone: phone,   // <--- Sending Real Phone
+          customerName: name,     // <--- Sending Real Name
+          customerId: user?.id
         }
       });
 
@@ -126,7 +185,6 @@ export default function Payment() {
   const verifyPayment = async (orderId: string) => {
     setStatus('processing');
     
-    // Check DB every 2 seconds (Max 5 attempts) to see if Webhook updated it
     let attempts = 0;
     const maxAttempts = 5;
 
@@ -138,14 +196,11 @@ export default function Payment() {
         .eq('id', orderId)
         .single();
 
-      // If Webhook has updated it to 'paid', show Success
       if (order?.payment_status === 'paid') {
         setStatus('success');
       } else if (attempts < maxAttempts) {
-        // Not updated yet? Wait 2s and try again
         setTimeout(checkStatus, 2000);
       } else {
-        // Timed out (Webhook delayed or Payment Failed)
         setStatus('failed'); 
       }
     };
@@ -185,10 +240,47 @@ export default function Payment() {
                   <p className="text-sm opacity-90 font-medium tracking-wide uppercase">Total Payable</p>
                   <p className="text-5xl font-extrabold mt-2 tracking-tight">₹{parseFloat(amountParam || "0").toFixed(0)}</p>
                </div>
+               
                <div className="p-6 space-y-4">
+                  
+                  {/* --- NEW: BILLING DETAILS FORM --- */}
+                  <div className="space-y-3 bg-muted/30 p-4 rounded-xl border border-border/50">
+                    <p className="text-sm font-semibold mb-2">Billing Details</p>
+                    
+                    <div className="space-y-1">
+                      <Label htmlFor="name" className="text-xs text-muted-foreground">Full Name</Label>
+                      <div className="relative">
+                        <User className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                          id="name" 
+                          placeholder="Your Name" 
+                          value={name} 
+                          onChange={(e) => setName(e.target.value)}
+                          className="pl-9 bg-white"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label htmlFor="phone" className="text-xs text-muted-foreground">Phone Number</Label>
+                      <div className="relative">
+                        <Phone className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input 
+                          id="phone" 
+                          type="tel"
+                          placeholder="99999 99999" 
+                          value={phone} 
+                          onChange={(e) => setPhone(e.target.value)}
+                          className="pl-9 bg-white"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* -------------------------------- */}
+
                   <Button 
                     onClick={handlePayNow} 
-                    disabled={isLoading}
+                    disabled={isLoading || !phone || !name} 
                     className="w-full h-14 text-lg font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-lg transition-all active:scale-[0.98]"
                   >
                     {isLoading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="mr-2" size={20}/>}

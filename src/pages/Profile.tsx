@@ -1,108 +1,160 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Phone, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, User, Mail, Phone, Save, Loader2, Camera, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/context/AuthContext';
-import { z } from 'zod';
-import { sanitizeText, sanitizePhone, sanitizeEmail } from '@/lib/sanitize';
-
-// Validation schemas
-const nameSchema = z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name is too long');
-const emailSchema = z.string().trim().email('Please enter a valid email address').max(255, 'Email is too long');
-const phoneSchema = z.string().trim().regex(/^[0-9]{10}$/, 'Please enter a valid 10-digit phone number').optional().or(z.literal(''));
 
 export default function Profile() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user, updateUser, isLoading } = useAuth();
-  
-  const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: ''
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isSaving, setIsSaving] = useState(false);
+  const { user } = useAuth(); 
 
-  // Initialize form with user data
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Form States
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [campusId, setCampusId] = useState<string | null>(null);
+  const [campusCode, setCampusCode] = useState(''); // New State for displaying code
+
+  // 1. Fetch Profile Data on Load
   useEffect(() => {
-    if (user) {
-      setFormData({
-        fullName: user.fullName || '',
-        email: user.email || '',
-        phone: user.phone || ''
-      });
-    }
+    const getProfile = async () => {
+      try {
+        if (!user) return;
+
+        // A. Get Data from "profiles" table
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('full_name, email, phone, campus_id') 
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        // B. Get Data from "user_roles" (Backup Source)
+        const { data: roleData } = await supabase
+          .from('user_roles')
+          .select('campus_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        const safeUser = user as any; 
+        
+        // Populate User Details
+        setFullName(profile?.full_name || safeUser.user_metadata?.full_name || '');
+        setEmail(user.email || ''); 
+        setPhone(profile?.phone || safeUser.user_metadata?.phone || ''); 
+        
+        // C. Find the Campus ID
+        const foundCampusId = profile?.campus_id || roleData?.campus_id || safeUser.user_metadata?.campus_id;
+        setCampusId(foundCampusId || null);
+
+        // D. Fetch Campus Code (Display Name)
+        if (foundCampusId) {
+            const { data: campusData } = await supabase
+                .from('campuses')
+                .select('code, name') // We fetch code (e.g., CMRTC)
+                .eq('id', foundCampusId)
+                .maybeSingle();
+            
+            if (campusData) {
+                setCampusCode(campusData.code || campusData.name || 'Unknown');
+            }
+        }
+
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    getProfile();
   }, [user]);
 
-  const validateForm = () => {
-    const newErrors: Record<string, string> = {};
-    
-    try {
-      nameSchema.parse(formData.fullName);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        newErrors.fullName = err.errors[0].message;
-      }
-    }
-    
-    try {
-      emailSchema.parse(formData.email);
-    } catch (err) {
-      if (err instanceof z.ZodError) {
-        newErrors.email = err.errors[0].message;
-      }
-    }
-    
-    if (formData.phone) {
-      try {
-        phoneSchema.parse(formData.phone);
-      } catch (err) {
-        if (err instanceof z.ZodError) {
-          newErrors.phone = err.errors[0].message;
-        }
-      }
-    }
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
+  // 2. Handle Save Changes
   const handleSave = async () => {
-    if (!validateForm()) return;
+    if (!user) return;
     
-    setIsSaving(true);
+    // Validation
+    if (!fullName.trim()) {
+        toast({ title: "Name required", description: "Please enter your full name", variant: "destructive" });
+        return;
+    }
+    if (phone && phone.length < 10) {
+        toast({ title: "Invalid Phone", description: "Please enter a valid phone number", variant: "destructive" });
+        return;
+    }
     
-    // Sanitize all inputs before saving
-    const sanitizedData = {
-      fullName: sanitizeText(formData.fullName),
-      email: sanitizeEmail(formData.email),
-      phone: formData.phone ? sanitizePhone(formData.phone) : undefined,
-    };
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    updateUser(sanitizedData);
-    
-    setIsSaving(false);
-    
-    toast({
-      title: 'Profile Updated!',
-      description: 'Your changes have been saved successfully.',
-    });
-    
-    navigate('/menu');
+    // 🛑 ORPHAN ACCOUNT FIX
+    if (!campusId) {
+        toast({ 
+            title: "Campus Not Found", 
+            description: "Please select your campus again to fix your account.", 
+            variant: "destructive" 
+        });
+        navigate('/select-campus');
+        return;
+    }
+
+    setSaving(true);
+
+    try {
+      const updates = {
+        user_id: user.id,      // The Unique Key
+        campus_id: campusId,    
+        full_name: fullName.trim(),
+        phone: phone.trim(),
+        updated_at: new Date().toISOString(),
+      };
+
+      console.log("Saving updates:", updates); 
+
+      // Step A: Update the Public 'profiles' table
+      const { error: dbError } = await supabase
+        .from('profiles')
+        .upsert(updates as any, { onConflict: 'user_id' });
+
+      if (dbError) throw dbError;
+
+      // Step B: Update Supabase Auth Metadata
+      const { error: authError } = await supabase.auth.updateUser({
+        data: { 
+          full_name: fullName.trim(),
+          phone: phone.trim(),
+          campus_id: campusId 
+        }
+      });
+
+      if (authError) throw authError;
+
+      toast({
+        title: "Profile Updated",
+        description: "Your details have been saved successfully.",
+      });
+
+    } catch (error: any) {
+      console.error("Save failed:", error);
+      toast({
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const getInitials = (name: string) => {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+    return name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'U';
   };
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -111,8 +163,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
+    <div className="min-h-screen bg-background pb-20">
       <header className="sticky top-0 z-50 bg-card border-b border-border">
         <div className="flex items-center gap-4 p-4 max-w-lg mx-auto">
           <button
@@ -126,17 +177,19 @@ export default function Profile() {
       </header>
 
       <main className="max-w-lg mx-auto p-4 space-y-6">
-        {/* Avatar Section */}
         <div className="flex flex-col items-center py-6">
-          <div className="w-24 h-24 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-3xl font-bold mb-4">
-            {getInitials(formData.fullName || 'GU')}
+          <div className="w-24 h-24 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-3xl font-bold mb-4 relative overflow-hidden">
+            {getInitials(fullName)}
+            <div className="absolute inset-0 bg-black/10 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
+                <Camera className="w-6 h-6 text-white" />
+            </div>
           </div>
           <p className="text-sm text-muted-foreground">Your profile photo</p>
         </div>
 
-        {/* Form */}
         <div className="space-y-4">
-          {/* Full Name */}
+          
+          {/* 1. Full Name */}
           <div className="space-y-2">
             <Label htmlFor="fullName" className="text-sm font-medium">Full Name</Label>
             <div className="relative">
@@ -145,17 +198,29 @@ export default function Profile() {
                 id="fullName"
                 type="text"
                 placeholder="Enter your full name"
-                value={formData.fullName}
-                onChange={(e) => setFormData(prev => ({ ...prev, fullName: e.target.value }))}
-                className={`h-12 pl-11 text-base rounded-xl ${errors.fullName ? 'border-destructive' : ''}`}
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="h-12 pl-11 text-base rounded-xl"
               />
             </div>
-            {errors.fullName && (
-              <p className="text-sm text-destructive">{errors.fullName}</p>
-            )}
           </div>
 
-          {/* Email */}
+          {/* 2. Campus Code (Read-Only) - ADDED HERE */}
+          <div className="space-y-2">
+            <Label htmlFor="campus" className="text-sm font-medium">Campus</Label>
+            <div className="relative">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <Input
+                id="campus"
+                type="text"
+                value={campusCode}
+                disabled
+                className="h-12 pl-11 text-base rounded-xl bg-muted/50 text-muted-foreground cursor-not-allowed font-medium"
+              />
+            </div>
+          </div>
+
+          {/* 3. Email (Read-Only) */}
           <div className="space-y-2">
             <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
             <div className="relative">
@@ -163,18 +228,15 @@ export default function Profile() {
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                className={`h-12 pl-11 text-base rounded-xl ${errors.email ? 'border-destructive' : ''}`}
+                value={email}
+                disabled
+                className="h-12 pl-11 text-base rounded-xl bg-muted/50 text-muted-foreground cursor-not-allowed"
               />
             </div>
-            {errors.email && (
-              <p className="text-sm text-destructive">{errors.email}</p>
-            )}
+            <p className="text-xs text-muted-foreground">Contact support to change email</p>
           </div>
 
-          {/* Phone */}
+          {/* 4. Phone Number */}
           <div className="space-y-2">
             <Label htmlFor="phone" className="text-sm font-medium">Phone Number</Label>
             <div className="relative">
@@ -183,26 +245,21 @@ export default function Profile() {
                 id="phone"
                 type="tel"
                 placeholder="Enter your 10-digit phone number"
-                value={formData.phone}
-                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, '').slice(0, 10) }))}
-                className={`h-12 pl-11 text-base rounded-xl ${errors.phone ? 'border-destructive' : ''}`}
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                className="h-12 pl-11 text-base rounded-xl"
               />
             </div>
-            {errors.phone && (
-              <p className="text-sm text-destructive">{errors.phone}</p>
-            )}
-            <p className="text-xs text-muted-foreground">Optional - for order updates</p>
           </div>
         </div>
 
-        {/* Save Button */}
         <div className="pt-4">
           <Button
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={saving}
             className="w-full h-12 text-base font-bold rounded-xl gap-2"
           >
-            {isSaving ? (
+            {saving ? (
               <>
                 <Loader2 className="w-5 h-5 animate-spin" />
                 Saving...
