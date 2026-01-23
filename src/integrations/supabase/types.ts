@@ -417,6 +417,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          amount: number | null
           campus_id: string
           canteen_id: string | null
           commission_amount: number | null
@@ -442,6 +443,7 @@ export type Database = {
           verified_by: string | null
         }
         Insert: {
+          amount?: number | null
           campus_id: string
           canteen_id?: string | null
           commission_amount?: number | null
@@ -467,6 +469,7 @@ export type Database = {
           verified_by?: string | null
         }
         Update: {
+          amount?: number | null
           campus_id?: string
           canteen_id?: string | null
           commission_amount?: number | null
