@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,28 +11,24 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // 1. Get the Data from Cashfree
     const payload = await req.json()
     console.log("Webhook Received:", JSON.stringify(payload))
 
-    // 2. Extract payment details
     const type = payload.type
     const orderId = payload.data?.order?.order_id
     const paymentStatus = payload.data?.payment?.payment_status
 
-    // 3. Connect to Supabase
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // 4. Handle Payment Success
     if (type === "PAYMENT_SUCCESS_WEBHOOK" || paymentStatus === "SUCCESS") {
       const { error } = await supabase
         .from('orders')
         .update({ 
-          payment_status: 'paid',   // Money Received
-          status: 'confirmed'       // Order is ready for pickup
+          payment_status: 'paid',
+          status: 'confirmed'
         })
         .eq('id', orderId)
 
@@ -45,13 +41,12 @@ Deno.serve(async (req) => {
       return new Response("Order Updated", { status: 200 })
     }
 
-    // 5. Handle Payment Failure
     if (type === "PAYMENT_FAILED_WEBHOOK" || paymentStatus === "FAILED" || paymentStatus === "CANCELLED" || paymentStatus === "USER_DROPPED") {
       const { error } = await supabase
         .from('orders')
         .update({ 
           payment_status: 'failed',
-          status: 'pending'  // Keep as pending so user can retry
+          status: 'pending'
         })
         .eq('id', orderId)
 
@@ -66,8 +61,8 @@ Deno.serve(async (req) => {
 
     return new Response("Ignored", { status: 200 })
 
-  } catch (err: any) { // <--- FIXED: Added ': any' here
-    console.error("Webhook Error:", err.message)
+  } catch (err) {
+    console.error("Webhook Error:", err)
     return new Response("Error", { status: 400 })
   }
 })
