@@ -37,6 +37,7 @@ Deno.serve(async (req) => {
 
     console.log("Sending to Cashfree:", JSON.stringify(payload))
 
+    // 1. Try to Create the Order
     const response = await fetch(CASHFREE_URL, {
       method: "POST",
       headers: {
@@ -50,11 +51,45 @@ Deno.serve(async (req) => {
 
     const data = await response.json()
 
+    // 2. HANDLE "ORDER ALREADY EXISTS" (The Retry Fix) 🛠️
     if (!response.ok) {
+      // Check if error is specifically "Order already exists" (Status 409)
+      if (response.status === 409 || data.message?.toLowerCase().includes("already exists")) {
+        console.log(`Order ${orderId} already exists. Fetching existing session...`)
+
+        // A. Fetch the existing order details from Cashfree
+        const getOrderResponse = await fetch(`${CASHFREE_URL}/${orderId}`, {
+          method: "GET",
+          headers: {
+            "x-client-id": APP_ID,
+            "x-client-secret": SECRET_KEY,
+            "x-api-version": "2023-08-01",
+          }
+        })
+
+        const existingOrderData = await getOrderResponse.json()
+
+        // B. Check if we can still pay for it
+        if (existingOrderData.payment_session_id) {
+           console.log("Recovered Session ID:", existingOrderData.payment_session_id)
+           
+           // SUCCESS! Return the existing session to the frontend
+           return new Response(JSON.stringify(existingOrderData), {
+             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+             status: 200,
+           })
+        } else {
+           // If order is EXPIRED or PAID, we can't retry.
+           throw new Error(`Order status is ${existingOrderData.order_status}. Cannot retry.`)
+        }
+      }
+
+      // If it's some other error, throw it normally
       console.error("Cashfree Error Response:", data)
       throw new Error(data.message || "Cashfree rejected the request")
     }
 
+    // 3. Success (New Order Created)
     return new Response(JSON.stringify(data), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
