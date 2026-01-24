@@ -778,6 +778,7 @@ export type Database = {
       }
     }
     Functions: {
+      check_phone_exists: { Args: { phone_input: string }; Returns: boolean }
       cleanup_expired_admin_sessions: { Args: never; Returns: number }
       cleanup_old_orders: { Args: never; Returns: number }
       cleanup_orders_older_than_48h: { Args: never; Returns: number }
