@@ -213,8 +213,13 @@ export default function MyOrders() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const getStatusConfig = (status: string, paymentStatus: string, verification: string) => {
+  const getStatusConfig = (status: string, paymentStatus: string, verification: string, rejectionReason?: string) => {
     if (status === 'collected') return { label: 'Collected', className: 'bg-gray-100 text-gray-700 border-gray-200' };
+    // Check if this is a "not collected" order (QR expired)
+    const isNotCollected = status === 'cancelled' && rejectionReason?.includes('Not collected');
+    if (isNotCollected) {
+      return { label: 'Not Collected', className: 'bg-red-100 text-red-700 border-red-200' };
+    }
     if (status === 'cancelled' || verification === 'rejected' || paymentStatus === 'failed' || paymentStatus === 'expired') {
       return { label: paymentStatus === 'expired' ? 'Expired' : 'Failed', className: 'bg-red-100 text-red-700 border-red-200' };
     }
@@ -256,12 +261,13 @@ export default function MyOrders() {
           </div>
         ) : (
           orders.map((order) => {
-            const statusConfig = getStatusConfig(order.status, order.payment_status, order.verification_status);
+            const isNotCollected = order.status === 'cancelled' && order.rejection_reason?.includes('Not collected');
+            const statusConfig = getStatusConfig(order.status, order.payment_status, order.verification_status, order.rejection_reason);
             const qrExpired = isQrExpired(order.created_at);
             const paymentTimedOut = isPaymentExpired(order.created_at);
             const remainingSeconds = getRemainingPaymentTime(order.created_at);
             
-            const isRejected = order.status === 'cancelled' || order.verification_status === 'rejected' || order.payment_status === 'failed' || order.payment_status === 'expired';
+            const isRejected = (order.status === 'cancelled' || order.verification_status === 'rejected' || order.payment_status === 'failed' || order.payment_status === 'expired') && !isNotCollected;
             const isPaymentPending = order.payment_status === 'pending' && order.status === 'pending' && !paymentTimedOut;
             const isCollected = order.status === 'collected';
             const isReady = (order.status === 'confirmed' || order.status === 'approved' || order.verification_status === 'approved') && order.payment_status === 'paid' && !isCollected;
@@ -297,16 +303,22 @@ export default function MyOrders() {
                       ))}
                     </div>
 
-                    {isRejected ? (
+                    {isNotCollected ? (
+                      <div className="bg-red-50 p-3 rounded-xl border border-red-100">
+                        <div className="flex items-start gap-2">
+                          <XCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+                          <div className="w-full">
+                            <p className="font-semibold text-sm text-red-700">Order Expired</p>
+                          </div>
+                        </div>
+                      </div>
+                    ) : isRejected ? (
                       <div className="bg-red-50 p-3 rounded-xl border border-red-100">
                         <div className="flex items-start gap-2">
                           <XCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
                           <div className="w-full">
                             <p className="font-semibold text-sm text-red-700">
                               {order.payment_status === 'expired' ? 'Payment Expired' : 'Payment Rejected'}
-                            </p>
-                            <p className="text-xs text-red-600 mt-0.5">
-                              Reason: <span className="font-medium">{order.rejection_reason || "Verification failed"}</span>
                             </p>
                           </div>
                         </div>
@@ -327,7 +339,7 @@ export default function MyOrders() {
                           <p className="text-sm font-medium text-red-600 flex items-center justify-center gap-1">
                             <XCircle size={16} /> Not Collected
                           </p>
-                          <p className="text-xs text-red-500 mt-1">QR code expired - Order was not collected within 5 hours</p>
+                          <p className="text-xs text-red-500 mt-1">Order Expired</p>
                         </div>
                       ) : (
                         <div 
