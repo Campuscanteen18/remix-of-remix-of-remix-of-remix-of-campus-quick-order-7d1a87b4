@@ -302,18 +302,12 @@ export default function MyOrders() {
                         <div className="flex items-start gap-2">
                           <XCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
                           <div className="w-full">
-                            <p className="font-semibold text-sm text-red-700">Payment Rejected</p>
+                            <p className="font-semibold text-sm text-red-700">
+                              {order.payment_status === 'expired' ? 'Payment Expired' : 'Payment Rejected'}
+                            </p>
                             <p className="text-xs text-red-600 mt-0.5">
                               Reason: <span className="font-medium">{order.rejection_reason || "Verification failed"}</span>
                             </p>
-                            <Button 
-                              size="sm" 
-                              variant="outline" 
-                              className="w-full mt-3 bg-white border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800 h-8 text-xs"
-                              onClick={() => navigate(`/payment?orderId=${order.id}`)}
-                            >
-                              Fix & Pay Again
-                            </Button>
                           </div>
                         </div>
                       </div>
