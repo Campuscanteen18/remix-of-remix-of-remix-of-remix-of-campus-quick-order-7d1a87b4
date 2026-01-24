@@ -105,15 +105,21 @@ export function useWeeklyAnalytics() {
       if (error) throw error;
 
       const ordersList = orders || [];
-      const completedOrders = ordersList.filter(o => o.status !== 'cancelled');
+
+      // ✅ FIX: STRICT FILTER FOR REVENUE
+      // We only count orders that are PAID (confirmed) or COLLECTED.
+      // We ignore 'pending', 'cancelled', and 'failed'.
+      const paidOrders = ordersList.filter(o => o.status === 'confirmed' || o.status === 'collected');
       const collectedOrders = ordersList.filter(o => o.status === 'collected');
 
-      // Calculate totals
-      const totalOrders = completedOrders.length;
-      const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      // Calculate totals based on PAID orders
+      const totalOrders = paidOrders.length;
+      const totalRevenue = paidOrders.reduce((sum, o) => sum + Number(o.total), 0);
       const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
-      const completionRate = ordersList.length > 0 
-        ? Math.round((collectedOrders.length / ordersList.length) * 100) 
+      
+      // Completion rate = Collected / Total Paid
+      const completionRate = paidOrders.length > 0 
+        ? Math.round((collectedOrders.length / paidOrders.length) * 100) 
         : 0;
 
       // Period breakdown
@@ -136,7 +142,8 @@ export function useWeeklyAnalytics() {
       // Item counts for top items
       const itemCounts: Record<string, { quantity: number; revenue: number }> = {};
 
-      completedOrders.forEach(order => {
+      // ✅ FIX: Iterate only over PAID orders for all charts
+      paidOrders.forEach(order => {
         const orderDate = new Date(order.created_at);
         const hour = orderDate.getHours();
         const dayOfWeek = orderDate.getDay();

@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useCampus } from '@/context/CampusContext';
 
+// ... (Interfaces remain the same) ...
 interface TimePeriodStats {
   period: string;
   periodId: string;
@@ -23,7 +24,6 @@ interface HourlyData {
   revenue: number;
 }
 
-// Simplified token system analytics
 interface TodayAnalytics {
   totalOrders: number;
   totalRevenue: number;
@@ -41,7 +41,7 @@ interface TodayAnalytics {
   dateString: string;
 }
 
-// Get time period from hour
+// ... (Helper functions remain the same) ...
 const getTimePeriod = (hour: number): string => {
   if (hour >= 7 && hour < 11) return 'breakfast';
   if (hour >= 11 && hour < 15) return 'lunch';
@@ -57,7 +57,6 @@ const periodNames: Record<string, string> = {
   dinner: 'Dinner',
 };
 
-// Format hour for display
 const formatHour = (hour: number) => {
   const suffix = hour >= 12 ? 'PM' : 'AM';
   const h = hour % 12 || 12;
@@ -70,7 +69,6 @@ export function useTodayAnalytics() {
   return useQuery({
     queryKey: ['today-analytics', campus?.id],
     queryFn: async (): Promise<TodayAnalytics> => {
-      // Get current date info
       const now = new Date();
       const currentHour = now.getHours();
       const currentPeriod = getTimePeriod(currentHour);
@@ -81,7 +79,6 @@ export function useTodayAnalytics() {
         year: 'numeric' 
       });
 
-      // Default empty data with current period highlighted
       const createDefaultData = (): TodayAnalytics => ({
         totalOrders: 0,
         totalRevenue: 0,
@@ -106,15 +103,11 @@ export function useTodayAnalytics() {
         dateString,
       });
 
-      if (!campus?.id) {
-        return createDefaultData();
-      }
+      if (!campus?.id) return createDefaultData();
 
-      // Get today's boundaries
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
-      // Fetch orders with items
       const { data: orders, error } = await supabase
         .from('orders')
         .select(`
@@ -131,23 +124,28 @@ export function useTodayAnalytics() {
       }
 
       const ordersList = orders || [];
-      const completedOrders = ordersList.filter(o => o.status !== 'cancelled');
+
+      // ✅ FIX: "Completed" means MONEY RECEIVED (Confirmed or Collected)
+      // We filter out 'pending', 'cancelled', 'failed' for Revenue Stats
+      const paidOrders = ordersList.filter(o => o.status === 'confirmed' || o.status === 'collected');
       const collectedOrdersList = ordersList.filter(o => o.status === 'collected');
 
-      // Calculate totals
-      const totalOrders = completedOrders.length;
-      const totalRevenue = completedOrders.reduce((sum, o) => sum + Number(o.total), 0);
+      // Calculate totals based ONLY on Paid Orders
+      const totalOrders = paidOrders.length;
+      const totalRevenue = paidOrders.reduce((sum, o) => sum + Number(o.total), 0);
       const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
-      const completionRate = ordersList.length > 0 
-        ? Math.round((collectedOrdersList.length / ordersList.length) * 100) 
+      
+      // Completion rate is (Collected / Total Paid Orders)
+      const completionRate = paidOrders.length > 0 
+        ? Math.round((collectedOrdersList.length / paidOrders.length) * 100) 
         : 0;
 
-      // Order status counts (simplified token system - no preparing/ready)
+      // Status counts (for the dashboard badges)
       const pendingOrders = ordersList.filter(o => o.status === 'pending').length;
       const confirmedOrders = ordersList.filter(o => o.status === 'confirmed').length;
-      const activeOrders = pendingOrders + confirmedOrders;
+      // "Active" usually means things the kitchen needs to worry about (Confirmed but not collected)
+      const activeOrders = confirmedOrders; 
 
-      // Period breakdown
       const periodStats: Record<string, { orders: number; revenue: number }> = {
         breakfast: { orders: 0, revenue: 0 },
         lunch: { orders: 0, revenue: 0 },
@@ -155,33 +153,29 @@ export function useTodayAnalytics() {
         dinner: { orders: 0, revenue: 0 },
       };
 
-      // Hour counts for peak hour and hourly chart
       const hourCounts: Record<number, { orders: number; revenue: number }> = {};
       for (let h = 7; h <= 22; h++) {
         hourCounts[h] = { orders: 0, revenue: 0 };
       }
 
-      // Item counts for top items
       const itemCounts: Record<string, { quantity: number; revenue: number }> = {};
 
-      completedOrders.forEach(order => {
+      // ✅ FIX: Only iterate over PAID orders for charts/graphs
+      paidOrders.forEach(order => {
         const orderDate = new Date(order.created_at);
         const hour = orderDate.getHours();
         const period = getTimePeriod(hour);
 
-        // Period stats
         if (periodStats[period]) {
           periodStats[period].orders += 1;
           periodStats[period].revenue += Number(order.total);
         }
 
-        // Hour counts
         if (hourCounts[hour]) {
           hourCounts[hour].orders += 1;
           hourCounts[hour].revenue += Number(order.total);
         }
 
-        // Item counts
         const items = order.order_items as Array<{ name: string; quantity: number; price: number }> || [];
         items.forEach((item) => {
           if (!itemCounts[item.name]) {
@@ -192,7 +186,6 @@ export function useTodayAnalytics() {
         });
       });
 
-      // Format period breakdown with percentages
       const periodBreakdown: TimePeriodStats[] = ['breakfast', 'lunch', 'snacks', 'dinner'].map(period => ({
         period: periodNames[period],
         periodId: period,
@@ -202,13 +195,11 @@ export function useTodayAnalytics() {
         isActive: period === currentPeriod,
       }));
 
-      // Top 5 items
       const topItems: TopItem[] = Object.entries(itemCounts)
         .map(([name, stats]) => ({ name, ...stats }))
         .sort((a, b) => b.quantity - a.quantity)
         .slice(0, 5);
 
-      // Hourly data for chart
       const hourlyData: HourlyData[] = [];
       for (let h = 7; h <= 21; h++) {
         hourlyData.push({
@@ -218,7 +209,6 @@ export function useTodayAnalytics() {
         });
       }
 
-      // Peak hour
       let peakHourVal = 0;
       let peakHourCount = 0;
       Object.entries(hourCounts).forEach(([hour, stats]) => {

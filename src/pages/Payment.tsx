@@ -22,6 +22,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCart } from "@/context/CartContext";
 import { useAuth } from "@/context/AuthContext";
 import { useOrders } from "@/hooks/useOrders";
+import { useStockCheck } from "@/hooks/useStockCheck"; // ✅ IMPORTED SAFETY CHECK
 
 export default function Payment() {
   const navigate = useNavigate();
@@ -30,6 +31,7 @@ export default function Payment() {
   const { user } = useAuth();
   const { toast } = useToast();
   const { createOrder } = useOrders();
+  const { checkStock } = useStockCheck(); // ✅ INITIALIZED SAFETY CHECK
 
   // URL Params
   const mode = searchParams.get("mode"); 
@@ -41,7 +43,7 @@ export default function Payment() {
   const [status, setStatus] = useState<'init' | 'processing' | 'success' | 'failed'>('init');
   const [cashfree, setCashfree] = useState<any>(null);
 
-  // --- NEW: State for User Details ---
+  // --- State for User Details ---
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
 
@@ -60,20 +62,16 @@ export default function Payment() {
         if (!user) return;
 
         try {
-            // A. Try to get data from 'profiles' table
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('full_name, phone')
                 .eq('user_id', user.id)
                 .maybeSingle();
 
-            // B. Fallback to Auth Metadata
-            // FIX: Cast to 'any' to avoid TypeScript error
             const safeUser = user as any;
             const metaName = safeUser.user_metadata?.full_name;
             const metaPhone = safeUser.user_metadata?.phone;
 
-            // C. Set State (Priority: DB > Metadata > Empty)
             if (profile?.full_name) setName(profile.full_name);
             else if (metaName) setName(metaName);
 
@@ -90,7 +88,6 @@ export default function Payment() {
 
   // 2. Handle Returns from Payment Gateway (NOT in retry mode)
   useEffect(() => {
-    // Only verify payment if we have an orderId AND we're NOT in retry mode
     if (orderIdParam && !isRetryMode) {
       verifyPayment(orderIdParam);
     } 
@@ -100,7 +97,7 @@ export default function Payment() {
   const handlePayNow = async () => {
     if (!cashfree) return;
     
-    // VALIDATION: Phone & Name are required for Cashfree
+    // VALIDATION
     if (!phone || phone.length < 10) {
       toast({ 
         title: "Phone Number Required", 
@@ -120,15 +117,28 @@ export default function Payment() {
 
     setIsLoading(true);
 
+    // ✅ SAFETY CHECK: Check Real Database Stock BEFORE Payment
+    const stockResult = await checkStock(cart);
+    if (!stockResult.success) {
+      toast({
+        title: "Items Out of Stock",
+        description: `Some items in your cart just sold out. Please update your cart.`,
+        variant: "destructive",
+      });
+      setIsLoading(false);
+      // Redirect back to menu after 1.5s so they can remove the item
+      setTimeout(() => navigate('/menu'), 1500); 
+      return;
+    }
+    // ---------------------------------------------------------
+
     try {
       const totalAmount = parseFloat(amountParam || "0");
       let orderId: string;
 
-      // If retrying an existing order, use that order ID
       if (isRetryMode && orderIdParam) {
         orderId = orderIdParam;
       } else {
-        // Create new order as PENDING
         if (cart.length === 0) {
           navigate('/menu');
           return;
@@ -140,7 +150,7 @@ export default function Payment() {
           paymentMethod: "ONLINE", 
           userId: user?.id,
           user_id: user?.id,
-          customerName: name,     // <--- Using State Value
+          customerName: name,
           customerEmail: user?.email,
           status: "pending",
           payment_status: "pending"
@@ -157,8 +167,8 @@ export default function Payment() {
         body: {
           orderId: orderId,
           amount: totalAmount,
-          customerPhone: phone,   // <--- Sending Real Phone
-          customerName: name,     // <--- Sending Real Name
+          customerPhone: phone,
+          customerName: name,
           customerId: user?.id
         }
       });
@@ -182,7 +192,7 @@ export default function Payment() {
     }
   };
 
-  // --- 4. VERIFY PAYMENT STATUS ---
+  // --- 4. VERIFY PAYMENT STATUS & DEDUCT STOCK ---
   const verifyPayment = async (orderId: string) => {
     setStatus('processing');
     
@@ -199,6 +209,35 @@ export default function Payment() {
 
       if (order?.payment_status === 'paid') {
         setStatus('success');
+
+        // --- AUTOMATIC STOCK DEDUCTION ---
+        try {
+          const { data: orderData } = await supabase
+            .from('orders')
+            .select('order_items(menu_item_id, quantity)')
+            .eq('id', orderId)
+            .single();
+
+          if (orderData?.order_items) {
+             for (const item of orderData.order_items) {
+               // @ts-ignore
+               if (item.menu_item_id) {
+                 // ✅ FIX: Added 'as any' to bypass strict type check for new function
+                 await supabase.rpc('decrement_stock' as any, {
+                   // @ts-ignore
+                   p_item_id: item.menu_item_id,
+                   // @ts-ignore
+                   p_quantity: item.quantity
+                 });
+               }
+             }
+             console.log("Stock inventory updated.");
+          }
+        } catch (stockError) {
+          console.error("Failed to update stock:", stockError);
+        }
+        // --------------------------------------
+
       } else if (attempts < maxAttempts) {
         setTimeout(checkStatus, 2000);
       } else {
@@ -244,7 +283,7 @@ export default function Payment() {
                
                <div className="p-6 space-y-4">
                   
-                  {/* --- NEW: BILLING DETAILS FORM --- */}
+                  {/* --- BILLING DETAILS FORM --- */}
                   <div className="space-y-3 bg-muted/30 p-4 rounded-xl border border-border/50">
                     <p className="text-sm font-semibold mb-2">Billing Details</p>
                     
@@ -323,16 +362,25 @@ export default function Payment() {
               <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-4">
                 <XCircle className="w-10 h-10 text-red-500" />
               </div>
-              <h2 className="text-2xl font-bold text-red-600 mb-2">Verification Failed</h2>
+              <h2 className="text-2xl font-bold text-red-600 mb-2">Payment Failed</h2>
               <p className="text-muted-foreground mb-6 text-sm">
-                 We couldn't confirm the payment yet. <br/>
-                 If money was deducted, it will be updated automatically.
+                 The transaction could not be completed.
               </p>
               <div className="space-y-3">
+                
+                {/* ✅ RETRY BUTTON: RELOADS PAGE TO RETRY IMMEDIATELY */}
+                <Button 
+                  className="w-full font-bold bg-blue-600 hover:bg-blue-700 h-12" 
+                  onClick={() => window.location.reload()} 
+                >
+                   <CreditCard className="mr-2" size={18} /> Retry Payment
+                </Button>
+
                 <Button variant="outline" className="w-full gap-2" onClick={() => verifyPayment(orderIdParam!)}>
                    <RefreshCw size={16} /> Check Status Again
                 </Button>
-                <Button className="w-full font-bold" onClick={() => navigate('/my-orders')}>
+                
+                <Button variant="ghost" className="w-full" onClick={() => navigate('/my-orders')}>
                    Go to My Orders
                 </Button>
               </div>

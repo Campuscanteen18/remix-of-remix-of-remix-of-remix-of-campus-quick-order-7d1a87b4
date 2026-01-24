@@ -1,9 +1,16 @@
 import { Plus, Minus } from "lucide-react";
-import { MenuItem } from "@/types/canteen";
+// We import the base type but extend it locally to fix the missing 'quantity' error instantly
+import { MenuItem as BaseMenuItem } from "@/types/canteen"; 
 import { useCart } from "@/context/CartContext";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
+
+// ✅ FIX: Extend the type locally so TypeScript doesn't complain
+// This allows you to use 'quantity' even if you haven't updated the global type file yet.
+interface MenuItem extends BaseMenuItem {
+  quantity?: number;
+}
 
 interface MenuItemCardProps {
   item: MenuItem;
@@ -14,16 +21,24 @@ export function MenuItemCard({ item }: MenuItemCardProps) {
   const cartItem = cart.find((i) => i.id === item.id);
   const quantity = cartItem?.quantity || 0;
 
+  // ✅ LOGIC: Item is "Sold Out" if Admin disabled it OR Stock is 0
+  // Checks if quantity exists and is less than or equal to 0
+  const isOutOfStock = (item.quantity !== undefined && item.quantity !== null) ? item.quantity <= 0 : false;
+  
+  // Final disabled state: either admin manually set isAvailable=false OR stock ran out
+  const isSoldOut = !item.isAvailable || isOutOfStock;
+
   return (
     <motion.div
-      whileHover={{ y: -2 }}
-      whileTap={{ scale: 0.98 }}
+      whileHover={!isSoldOut ? { y: -2 } : {}}
+      whileTap={!isSoldOut ? { scale: 0.98 } : {}}
       className={cn(
         "group relative bg-card rounded-2xl overflow-hidden transition-all duration-200",
         quantity > 0 
           ? "ring-2 ring-primary shadow-medium" 
           : "shadow-soft hover:shadow-medium",
-        !item.isAvailable && "opacity-50 pointer-events-none",
+        // If sold out, we lower opacity but keep it visible so they know it exists
+        isSoldOut && "opacity-75"
       )}
     >
       {/* Image Section */}
@@ -44,16 +59,26 @@ export function MenuItemCard({ item }: MenuItemCardProps) {
         <img
           src={item.image || '/placeholder.svg'}
           alt={item.name}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          className={cn(
+            "w-full h-full object-cover transition-transform duration-500",
+            !isSoldOut && "group-hover:scale-105",
+            isSoldOut && "grayscale-[0.5]" // Slight grey effect for sold out
+          )}
           onError={(e) => {
             e.currentTarget.src = '/placeholder.svg';
           }}
         />
 
-        {!item.isAvailable && (
-          <div className="absolute inset-0 bg-background/70 flex items-center justify-center backdrop-blur-sm">
-            <span className="px-3 py-1.5 rounded-lg bg-muted text-muted-foreground font-medium text-xs">
-              Sold Out
+        {/* ✅ OVERLAY: Shows automatically if Quantity is 0 */}
+        {isSoldOut && (
+          <div className="absolute inset-0 bg-background/60 flex items-center justify-center backdrop-blur-[1px]">
+            <span className={cn(
+              "px-3 py-1.5 rounded-lg font-bold text-xs border shadow-sm",
+              isOutOfStock 
+                ? "bg-red-100 text-red-700 border-red-200" // Stock ran out
+                : "bg-muted text-muted-foreground border-border" // Admin disabled
+            )}>
+              {isOutOfStock ? "Out of Stock" : "Unavailable"}
             </span>
           </div>
         )}
@@ -73,7 +98,8 @@ export function MenuItemCard({ item }: MenuItemCardProps) {
             ₹{item.price}
           </span>
 
-          {item.isAvailable && (
+          {/* ✅ BUTTON LOGIC */}
+          {!isSoldOut ? (
             quantity > 0 ? (
               <div className="flex items-center gap-1.5">
                 <button
@@ -102,6 +128,16 @@ export function MenuItemCard({ item }: MenuItemCardProps) {
                 Add
               </Button>
             )
+          ) : (
+            // DISABLED BUTTON STATE
+            <Button 
+              disabled 
+              size="sm" 
+              variant="outline"
+              className="h-7 px-3 rounded-lg text-xs font-medium border-dashed text-muted-foreground bg-transparent"
+            >
+              Sold Out
+            </Button>
           )}
         </div>
       </div>

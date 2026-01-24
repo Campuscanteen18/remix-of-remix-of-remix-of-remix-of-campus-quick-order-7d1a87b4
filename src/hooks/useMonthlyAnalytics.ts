@@ -62,16 +62,19 @@ export function useMonthlyAnalytics() {
         .select('id, total, created_at, status')
         .eq('campus_id', campus.id)
         .gte('created_at', monthStart.toISOString())
-        .lte('created_at', monthEnd.toISOString())
-        .neq('status', 'cancelled');
+        .lte('created_at', monthEnd.toISOString());
 
       if (error) throw error;
 
       const ordersList = orders || [];
 
-      // Calculate totals
-      const totalOrders = ordersList.length;
-      const totalRevenue = ordersList.reduce((sum, o) => sum + Number(o.total), 0);
+      // ✅ FIX: STRICT FILTER FOR REVENUE
+      // Only include confirmed or collected orders. Ignore pending/failed/cancelled.
+      const paidOrders = ordersList.filter(o => o.status === 'confirmed' || o.status === 'collected');
+
+      // Calculate totals using PAID orders
+      const totalOrders = paidOrders.length;
+      const totalRevenue = paidOrders.reduce((sum, o) => sum + Number(o.total), 0);
       const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
 
       // Period breakdown
@@ -82,7 +85,8 @@ export function useMonthlyAnalytics() {
         dinner: { orders: 0, revenue: 0 },
       };
 
-      ordersList.forEach(order => {
+      // ✅ FIX: Iterate over paidOrders
+      paidOrders.forEach(order => {
         const hour = new Date(order.created_at).getHours();
         const period = getTimePeriod(hour);
         if (periodStats[period]) {
@@ -106,7 +110,8 @@ export function useMonthlyAnalytics() {
         const dayStart = new Date(now.getFullYear(), now.getMonth(), day);
         const dayEnd = new Date(now.getFullYear(), now.getMonth(), day, 23, 59, 59);
 
-        const dayOrders = ordersList.filter(o => {
+        // ✅ FIX: Use paidOrders for daily trends too
+        const dayOrders = paidOrders.filter(o => {
           const orderDate = new Date(o.created_at);
           return orderDate >= dayStart && orderDate <= dayEnd;
         });
