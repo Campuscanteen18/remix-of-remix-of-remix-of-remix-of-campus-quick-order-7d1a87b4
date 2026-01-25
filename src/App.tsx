@@ -46,6 +46,10 @@ import { SuperAdminOrders } from "./pages/super-admin/SuperAdminOrders";
 import { Settlements } from "./pages/super-admin/Settlements";
 import { CampusManagement } from "./pages/super-admin/CampusManagement";
 import { SuperAdminSettings } from "./pages/super-admin/SuperAdminSettings";
+import { SupportTickets } from "./pages/super-admin/SupportTickets";
+import { UserManagement } from "./pages/super-admin/UserManagement";
+import { AuditLogs } from "./pages/super-admin/AuditLogs";
+import { Analytics } from "./pages/super-admin/Analytics";
 import { SuperAdminLayout } from "@/components/super-admin/SuperAdminLayout";
 
 const queryClient = new QueryClient({
@@ -210,6 +214,46 @@ const App = () => (
                                     <SuperAdminRoute>
                                       <SuperAdminLayout>
                                         <SuperAdminSettings />
+                                      </SuperAdminLayout>
+                                    </SuperAdminRoute>
+                                  } 
+                                />
+                                <Route 
+                                  path="/super-admin/support" 
+                                  element={
+                                    <SuperAdminRoute>
+                                      <SuperAdminLayout>
+                                        <SupportTickets />
+                                      </SuperAdminLayout>
+                                    </SuperAdminRoute>
+                                  } 
+                                />
+                                <Route 
+                                  path="/super-admin/users" 
+                                  element={
+                                    <SuperAdminRoute>
+                                      <SuperAdminLayout>
+                                        <UserManagement />
+                                      </SuperAdminLayout>
+                                    </SuperAdminRoute>
+                                  } 
+                                />
+                                <Route 
+                                  path="/super-admin/audit-logs" 
+                                  element={
+                                    <SuperAdminRoute>
+                                      <SuperAdminLayout>
+                                        <AuditLogs />
+                                      </SuperAdminLayout>
+                                    </SuperAdminRoute>
+                                  } 
+                                />
+                                <Route 
+                                  path="/super-admin/analytics" 
+                                  element={
+                                    <SuperAdminRoute>
+                                      <SuperAdminLayout>
+                                        <Analytics />
                                       </SuperAdminLayout>
                                     </SuperAdminRoute>
                                   } 

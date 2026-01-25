@@ -6,24 +6,27 @@ import { PageTransition } from "@/components/PageTransition";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/context/AuthContext";
+import { useCampus } from "@/context/CampusContext";
 
 export default function Support() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user } = useAuth();
+  const { campus } = useCampus();
   
-  // State for FAQ toggles
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  
-  // State for Issue Reporting
   const [issueText, setIssueText] = useState("");
   const [subject, setSubject] = useState("");
+  const [category, setCategory] = useState("payment");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
   };
 
-  const handleReportSubmit = () => {
+  const handleReportSubmit = async () => {
     if (!issueText.trim() || !subject.trim()) {
       toast({
         title: "Missing Information",
@@ -33,20 +36,50 @@ export default function Support() {
       return;
     }
 
+    if (!user || !campus) {
+      toast({
+        title: "Login Required",
+        description: "Please login to submit a support ticket.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
-    // Simulate sending data
-    setTimeout(() => {
-      setIsSubmitting(false);
+    try {
+      const { data, error } = await supabase
+        .from('support_tickets')
+        .insert({
+          user_id: user.id,
+          campus_id: campus.id,
+          category: category,
+          subject: subject.trim(),
+          description: issueText.trim(),
+          ticket_number: 'TEMP' // Will be replaced by trigger
+        } as any)
+        .select('ticket_number')
+        .single();
+
+      if (error) throw error;
+
       setIssueText(""); 
       setSubject("");
       toast({
-        title: "Ticket #2049 Created",
-        description: "We have received your issue. Support team will call you shortly.",
-        variant: "default", 
+        title: `Ticket ${data.ticket_number} Created`,
+        description: "We have received your issue. Support team will respond shortly.",
         className: "bg-green-600 text-white border-none"
       });
-    }, 1500);
+    } catch (error) {
+      console.error('Error creating ticket:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create ticket. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const faqs = [
@@ -198,15 +231,19 @@ export default function Support() {
                               className="flex h-12 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                            />
                         </div>
-                        <div className="space-y-2">
+                         <div className="space-y-2">
                            <Label>Category</Label>
-                           <select className="flex h-12 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                              <option>Payment Issue</option>
-                              <option>Order Not Received</option>
-                              <option>Food Quality</option>
-                              <option>Other</option>
+                           <select 
+                             value={category}
+                             onChange={(e) => setCategory(e.target.value)}
+                             className="flex h-12 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                           >
+                              <option value="payment">Payment Issue</option>
+                              <option value="order">Order Issue</option>
+                              <option value="account">Account Issue</option>
+                              <option value="general">General Feedback</option>
                            </select>
-                        </div>
+                         </div>
                      </div>
 
                      <div className="space-y-2">
