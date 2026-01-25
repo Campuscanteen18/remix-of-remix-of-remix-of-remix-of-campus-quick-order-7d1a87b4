@@ -782,6 +782,10 @@ export type Database = {
       cleanup_expired_admin_sessions: { Args: never; Returns: number }
       cleanup_old_orders: { Args: never; Returns: number }
       cleanup_orders_older_than_48h: { Args: never; Returns: number }
+      decrement_stock: {
+        Args: { p_item_id: string; p_quantity: number }
+        Returns: undefined
+      }
       get_pending_verification_count: { Args: never; Returns: number }
       get_super_admin_stats: {
         Args: { p_campus_id?: string; p_canteen_id?: string }
