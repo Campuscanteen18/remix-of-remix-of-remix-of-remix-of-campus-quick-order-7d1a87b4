@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
+import { Utensils } from "lucide-react";
 import { cn } from "@/lib/utils";
-import biteosLogo from '@/assets/biteos-logo.png';
 
 interface SplashScreenProps {
   onComplete: () => void;
@@ -33,27 +33,33 @@ export function SplashScreen({ onComplete }: SplashScreenProps) {
 
       <div className="relative flex flex-col items-center gap-5">
         {/* Animated Logo */}
-        <img
-          src={biteosLogo}
-          alt="BiteOS Logo"
+        <div
           className={cn(
-            "w-24 h-24 object-contain transition-all duration-500 ease-out-expo",
+            "relative flex items-center justify-center w-20 h-20 rounded-2xl bg-primary text-primary-foreground transition-all duration-500 ease-out-expo",
             phase === "logo" ? "scale-0 opacity-0" : "scale-100 opacity-100",
           )}
           style={{
-            filter: phase !== "logo" ? "drop-shadow(0 8px 32px hsl(var(--primary) / 0.3))" : "none",
+            boxShadow: phase !== "logo" ? "0 8px 32px -8px hsl(var(--primary) / 0.4)" : "none",
           }}
-        />
+        >
+          <Utensils size={40} strokeWidth={1.8} />
+          <div
+            className={cn(
+              "absolute -bottom-1 -right-1 w-5 h-5 bg-secondary rounded-lg border-3 border-background transition-all duration-300 delay-150",
+              phase === "logo" ? "scale-0" : "scale-100",
+            )}
+          />
+        </div>
 
         {/* Brand Text */}
         <div
           className={cn(
-            "flex items-baseline gap-0.5 transition-all duration-400 ease-out-expo",
+            "flex flex-col items-center gap-0.5 transition-all duration-400 ease-out-expo",
             phase === "text" || phase === "exit" ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3",
           )}
         >
-          <span className="font-display text-3xl font-semibold text-foreground tracking-tight">Bite</span>
-          <span className="font-display text-3xl font-bold text-primary tracking-tight">OS</span>
+          <span className="font-display text-2xl font-semibold text-foreground tracking-tight">Bite</span>
+          <span className="font-display text-2xl font-bold text-primary tracking-tight">OS</span>
         </div>
 
         {/* Tagline */}
